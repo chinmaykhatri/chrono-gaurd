@@ -1,0 +1,13 @@
+.env
+.env.*
+.admin-password
+**/.venv
+**/node_modules
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/dist
+**/*.log
+**/*.exe
+**/test-results
+**/playwright-report

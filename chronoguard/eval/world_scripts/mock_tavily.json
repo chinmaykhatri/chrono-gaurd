@@ -1,0 +1,68 @@
+{
+  "software_versions:react:latest_stable_version": {
+    "query": "React latest stable version official release notes",
+    "results": [
+      {
+        "url": "https://react.dev/blog/2024/12/05/react-19",
+        "domain": "react.dev",
+        "title": "React 19 is now stable",
+        "snippet": "React 19 is now available on npm! In this post, we give an overview of what is in React 19: Actions, useActionState, useFormStatus, and Server Components.",
+        "published_date": "2024-12-05T00:00:00Z",
+        "tier": 1
+      }
+    ]
+  },
+  "software_versions:python:latest_version": {
+    "query": "Python current active release official",
+    "results": [
+      {
+        "url": "https://www.python.org/downloads/release/python-3130/",
+        "domain": "python.org",
+        "title": "Python 3.13.0 Release Notes",
+        "snippet": "Python 3.13 is the newest major release of the Python programming language, featuring an experimental free-threaded build mode and improved interactive interpreter.",
+        "published_date": "2024-10-07T00:00:00Z",
+        "tier": 1
+      }
+    ]
+  },
+  "pricing_plans:chatgpt_plus:monthly_price": {
+    "query": "ChatGPT Plus official subscription pricing",
+    "results": [
+      {
+        "url": "https://openai.com/chatgpt/pricing",
+        "domain": "openai.com",
+        "title": "ChatGPT Pricing & Plans",
+        "snippet": "ChatGPT Plus is available for $20/month. Access GPT-4o, advanced data analysis, browsing, and custom GPTs.",
+        "published_date": "2026-01-01T00:00:00Z",
+        "tier": 1
+      }
+    ]
+  },
+  "org_people:twitter:ceo": {
+    "query": "Twitter X CEO current leadership",
+    "results": [
+      {
+        "url": "https://about.x.com/en/who-we-are/our-company",
+        "domain": "x.com",
+        "title": "About X - Leadership",
+        "snippet": "Linda Yaccarino serves as Chief Executive Officer of X Corp., overseeing business operations, partnerships, and platform safety.",
+        "published_date": "2024-01-01T00:00:00Z",
+        "tier": 1
+      }
+    ]
+  },
+  "regulation_policy:eu:ai_act_status": {
+    "query": "EU AI Act in force date EUR-Lex",
+    "results": [
+      {
+        "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689",
+        "domain": "europa.eu",
+        "title": "Regulation (EU) 2024/1689 of the European Parliament and of the Council",
+        "snippet": "The Artificial Intelligence Act entered into force on 1 August 2024. Most rules will apply 24 months later, with bans on unacceptable risk taking effect after 6 months.",
+        "published_date": "2024-07-12T00:00:00Z",
+        "tier": 1
+      }
+    ]
+  }
+}
+

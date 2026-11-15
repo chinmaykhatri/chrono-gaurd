@@ -1,0 +1,171 @@
+# ChronoGuard main configuration
+# Loaded by the verifier at startup and referenced by the Go plugins.
+
+chronoguard:
+  enabled: true
+  version: "0.1.0"
+
+  clock:
+    mode: real                    # real | simulated
+    allow_simulated: true         # allow clock manipulation via API
+
+  # Plugin sandwich order (informational; actual order in bifrost config.json)
+  plugin_order:
+    - chronoguard_front
+    - semantic_cache
+    - chronoguard_back
+
+  # Volatility class overrides (defaults from Doc 4 §4.5.2)
+  classes:
+    static:
+      half_life_seconds: null
+      soft_ttl_seconds: null
+      salience: 0
+      cacheable: true
+    slow_facts:
+      half_life_seconds: 31536000   # 365 days
+      soft_ttl_seconds: 7776000     # 90 days
+      interval_min_seconds: 2592000 # 30 days
+      interval_max_seconds: 15552000 # 180 days
+      salience: 0.4
+      cacheable: true
+    org_people:
+      half_life_seconds: 7776000    # 90 days
+      soft_ttl_seconds: 1814400     # 21 days
+      interval_min_seconds: 604800  # 7 days
+      interval_max_seconds: 5184000 # 60 days
+      salience: 0.8
+      cacheable: true
+    software_versions:
+      half_life_seconds: 1814400    # 21 days
+      soft_ttl_seconds: 604800      # 7 days
+      interval_min_seconds: 172800  # 2 days
+      interval_max_seconds: 2592000 # 30 days
+      salience: 1.0
+      cacheable: true
+    pricing_plans:
+      half_life_seconds: 1209600    # 14 days
+      soft_ttl_seconds: 259200      # 3 days
+      interval_min_seconds: 43200   # 12 hours
+      interval_max_seconds: 1209600 # 14 days
+      salience: 1.0
+      cacheable: true
+    regulation_policy:
+      half_life_seconds: 5184000    # 60 days
+      soft_ttl_seconds: 1209600     # 14 days
+      interval_min_seconds: 259200  # 3 days
+      interval_max_seconds: 3888000 # 45 days
+      salience: 1.0
+      cacheable: true
+    news_events:
+      half_life_seconds: 345600     # 4 days
+      soft_ttl_seconds: 86400       # 1 day
+      interval_min_seconds: 21600   # 6 hours
+      interval_max_seconds: 259200  # 3 days
+      salience: 0.7
+      cacheable: true
+    realtime:
+      half_life_seconds: 900        # 15 minutes
+      soft_ttl_seconds: 0           # never cache
+      salience: 1.0
+      cacheable: false
+
+  # Tavily configuration
+  tavily:
+    # api_key loaded from TAVILY_API_KEY env var
+    credits_per_hour: 300
+    search_timeout_seconds: 10
+    extract_timeout_seconds: 15
+    max_retries: 2
+    credit_costs:
+      basic_search: 1.0
+      advanced_search: 2.0
+      extract_per_5_urls: 1.0
+
+  # LLM budgets
+  llm:
+    tokens_per_hour: 400000
+    extractor_temperature: 0
+    judge_temperature: 0
+    max_claims_per_extraction: 25
+
+  # Policies (defaults; overridable via API)
+  policies:
+    strict:
+      strictness: strict
+      mode: verify_before_return
+      blocking_budget_ms: 4500
+      revalidate_budget_ms: 3000
+      regen_budget_ms: 12000
+      serve_min_freshness: 60
+      evict_below: 35
+      on_unverifiable: fail_closed
+      regen_on_stale: true
+      max_claims_per_response: 8
+      max_credits_per_response: 6.0
+    standard:
+      strictness: standard
+      mode: async
+      blocking_budget_ms: 4500
+      revalidate_budget_ms: 3000
+      regen_budget_ms: 12000
+      serve_min_freshness: 60
+      evict_below: 35
+      on_unverifiable: serve_annotated
+      regen_on_stale: true
+      max_claims_per_response: 8
+      max_credits_per_response: 6.0
+    lenient:
+      strictness: lenient
+      mode: async
+      blocking_budget_ms: 4500
+      revalidate_budget_ms: 3000
+      regen_budget_ms: 12000
+      serve_min_freshness: 40
+      evict_below: 20
+      on_unverifiable: serve_annotated
+      regen_on_stale: false
+      max_claims_per_response: 6
+      max_credits_per_response: 4.0
+
+  # Kill switch
+  kill_switch: false
+
+  # Freshness scoring weights (Doc 4 §4.5.9)
+  scoring:
+    bias: -1.0
+    weights:
+      confirmed: 2.5
+      outdated: -2.0
+      contradicted: -2.5
+      unverifiable: -0.5
+    feature_weights:
+      support: 1.5
+      recency: 0.8
+      authority: 1.0
+      agreement: 0.8
+      coverage: 0.4
+      contra: -2.0
+      prior: 0.4
+
+  # Degrade ladder
+  degrade:
+    threshold_pct: 20              # below this % of bucket capacity
+    actions:
+      - advanced_to_basic          # downgrade search depth
+      - drop_extract               # skip Tavily Extract
+      - raise_priority_cutoff      # only verify high-priority claims
+
+  # Privacy
+  privacy:
+    store_content: true
+    retention_days: 90
+    redact_pii: true
+
+  # Telemetry
+  telemetry:
+    prometheus_enabled: true
+    prometheus_port: 9090
+    log_level: info
+    structured_logging: true
+
