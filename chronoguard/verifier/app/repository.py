@@ -161,6 +161,11 @@ class Repository:
                 for row in rows:
                     row["entries_affected"] = counts.get(row["id"], 0)
                     row["interval_s"] = row.get("interval_seconds")
+                    lam = float(row.get("lambda_hat") or 0.0)
+                    row["lambda_hat"] = lam
+                    row["est_change_days"] = round(1.0 / (lam * 86400), 1) if lam > 0 else None
+                    row["query_hits"] = row.get("query_hits") or 0
+                    row["optimal_interval_s"] = row.get("optimal_interval_s") or row.get("interval_seconds")
         return {"items": rows[:limit], "next_cursor":str(rows[limit-1]["id"]) if len(rows)>limit else None}
 
     async def cache_entry(self, tenant, identity):
@@ -246,8 +251,10 @@ class Repository:
             await self.event(tenant, "verification.finished", {"response_id":response_id,"verdict":"unverifiable","reason":reason}, session)
         return annotation
 
-    async def costs(self, tenant, hours=24, redis=None):
+    async def costs(self, tenant, hours=24, redis=None, settings=None):
         start = datetime.now(UTC) - timedelta(hours=hours)
+        one_hour_ago = datetime.now(UTC) - timedelta(hours=1)
+        checks_last_hour = 0
         async with self.database.sessions() as session:
             rows = (await session.execute(sa.select(db.cost_ledger).where(db.cost_ledger.c.tenant_id == tenant, db.cost_ledger.c.created_at >= start))).mappings().all()
             facts = (await session.execute(
@@ -256,6 +263,18 @@ class Repository:
                 .where(db.facts.c.tenant_id == tenant, db.verifications.c.created_at >= start)
                 .group_by(db.facts.c.fact_key).order_by(sa.desc(sa.func.sum(db.verifications.c.tavily_credits))).limit(10)
             )).mappings().all()
+            checks_last_hour = (await session.execute(
+                sa.select(sa.func.count(db.verifications.c.id)).where(db.verifications.c.tenant_id == tenant, db.verifications.c.created_at >= one_hour_ago)
+            )).scalar() or 0
+
+        scheduler_mode = getattr(settings, "scheduler_mode", "standard") if settings else "standard"
+        budget_target = getattr(settings, "scheduler_budget_checks_per_hour", 100) if settings else 100
+        scheduler_metrics = {
+            "mode": scheduler_mode,
+            "budget_checks_per_hour": budget_target,
+            "actual_checks_last_hour": checks_last_hour,
+            "budget_utilization_pct": round((checks_last_hour / max(budget_target, 1)) * 100, 1),
+        }
 
         delta_metrics = {
             "total_checks": 0,
@@ -352,4 +371,5 @@ class Repository:
             "facts": [dict(row) for row in facts],
             "items": [dict(row) for row in rows],
             "delta_metrics": delta_metrics,
+            "scheduler_metrics": scheduler_metrics,
         }

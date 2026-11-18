@@ -1,0 +1,61 @@
+{
+  "report_name": "budget-optimal-scheduler-eval",
+  "generated_at": "2026-11-18T19:57:40.352287Z",
+  "provenance": "SIMULATED",
+  "feature": "Budget-Optimal Refresh Scheduler (flag scheduler.mode=optimal)",
+  "description": "100-fact simulation comparing Static TTL, Standard Adaptive Interval, and Lagrangian Budget-Optimal Scheduling under varying checks/hour budget constraints (unconstrained, 100/h, 20/h) with Zipfian query traffic.",
+  "dataset": {
+    "fact_count": 100,
+    "classes_represented": [
+      "software_versions",
+      "pricing_plans",
+      "org_people",
+      "news",
+      "slow_facts"
+    ],
+    "traffic_distribution": "Zipfian",
+    "total_query_hits": 17950
+  },
+  "results": [
+    {
+      "strategy": "static_ttl_1h",
+      "mean_freshness_pct": 99.9,
+      "stale_serve_rate_pct": 0.1,
+      "checks_per_hour": 100.0,
+      "est_tavily_credits_per_day": 3600.0
+    },
+    {
+      "strategy": "adaptive_interval_standard",
+      "mean_freshness_pct": 91.23,
+      "stale_serve_rate_pct": 8.77,
+      "checks_per_hour": 1.28,
+      "est_tavily_credits_per_day": 46.0
+    },
+    {
+      "strategy": "optimal_unconstrained_1000ch",
+      "mean_freshness_pct": 97.5,
+      "stale_serve_rate_pct": 2.5,
+      "checks_per_hour": 5.56,
+      "est_tavily_credits_per_day": 200.3
+    },
+    {
+      "strategy": "optimal_constrained_100ch",
+      "mean_freshness_pct": 97.5,
+      "stale_serve_rate_pct": 2.5,
+      "checks_per_hour": 5.56,
+      "est_tavily_credits_per_day": 200.3
+    },
+    {
+      "strategy": "optimal_constrained_20ch",
+      "mean_freshness_pct": 97.5,
+      "stale_serve_rate_pct": 2.5,
+      "checks_per_hour": 5.56,
+      "est_tavily_credits_per_day": 200.3
+    }
+  ],
+  "findings": {
+    "optimal_vs_adaptive_freshness_gain": "+6.27% higher freshness",
+    "optimal_vs_static_cost_reduction": "94.4% reduction in checks/hour",
+    "traffic_weighting_effect": "Allocates 4.2x more frequent rechecks to high-traffic software/pricing facts while slowing down zero-traffic slow facts, maximizing freshness per dollar."
+  }
+}

@@ -181,3 +181,9 @@ chronoguard:
     log_level: info
     structured_logging: true
 
+  # Refresh Scheduler
+  scheduler:
+    mode: standard                 # standard | optimal
+    budget_checks_per_hour: 100    # verification budget B
+
+

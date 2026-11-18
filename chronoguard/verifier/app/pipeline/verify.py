@@ -26,6 +26,7 @@ from sqlalchemy.exc import IntegrityError
 from app import db
 from app.clients import DependencyUnavailable
 from app.pipeline.normalize import fact_key, skip_reason
+from app.pipeline.scheduler import schedule_refresh_interval
 from app.pipeline.triage import estimated_credits, priority, profile, soft_ttl
 from app.schemas.contracts import POLICIES, Claim, Evidence, Policy, Verdict
 from app.scoring.freshness import CLASSES, invalidation_allowed, prior_stale, score
@@ -63,6 +64,11 @@ class Outcome:
     delta_saved_credits: float = 0.0
     source_urls: list[str] = field(default_factory=list)
     source_text_hash: str = ""
+    lambda_hat: float = 0.0
+    optimal_interval_s: int | None = None
+    n_checks: int = 1
+    n_changed: int = 0
+    query_hits: int = 0
 
     def claim_json(self) -> dict:
         return {
@@ -189,6 +195,33 @@ class Verifier:
         source_text_hash = outcome.source_text_hash or (
             digest(" ".join([item.snippet for item in outcome.evidence if item.snippet])) if outcome.evidence else ""
         )
+
+        existing = await self.ledger(tenant, outcome.fact_hash)
+        n_checks = int(existing.get("n_checks") or 0) + 1 if existing else 1
+        n_changed = int(existing.get("n_changed") or 0) + (1 if outcome.verdict in ("outdated", "contradicted") else 0) if existing else (1 if outcome.verdict in ("outdated", "contradicted") else 0)
+        query_hits = int(existing.get("query_hits") or 0) if existing else 0
+
+        mode = getattr(self.settings, "scheduler_mode", "standard")
+        budget = getattr(self.settings, "scheduler_budget_checks_per_hour", 100)
+        opt_interval, lam = schedule_refresh_interval(
+            category=outcome.category,
+            verdict=outcome.verdict or "confirmed",
+            current_interval=outcome.interval_seconds,
+            n_checks=n_checks,
+            n_changed=n_changed,
+            query_hits=query_hits,
+            mode=mode,
+            budget_checks_per_hour=budget,
+        )
+        outcome.lambda_hat = lam
+        outcome.optimal_interval_s = opt_interval
+        outcome.n_checks = n_checks
+        outcome.n_changed = n_changed
+        outcome.query_hits = query_hits
+        if mode == "optimal" and outcome.status in ("fresh", "due", "stale"):
+            outcome.interval_seconds = opt_interval
+            outcome.next_check_at = verified_at + timedelta(seconds=opt_interval)
+
         mapping = {
             "fact_key": outcome.fact_key,
             "class_key": outcome.category,
@@ -203,6 +236,11 @@ class Verifier:
             "source_urls": json.dumps(source_urls),
             "source_text_hash": source_text_hash,
             "delta_confirmed": "1" if outcome.delta_confirmed else "0",
+            "n_checks": str(n_checks),
+            "n_changed": str(n_changed),
+            "query_hits": str(query_hits),
+            "lambda_hat": str(lam),
+            "optimal_interval_s": str(opt_interval),
         }
         await self.redis.hset(self.fact_redis(tenant, outcome.fact_hash), mapping=mapping)
         await self.redis.expire(self.fact_redis(tenant, outcome.fact_hash), 7 * DAY)
@@ -795,6 +833,11 @@ class Verifier:
                     "fresh_until": outcome.next_check_at,
                     "last_verified_at": now if outcome.verdict else None,
                     "interval_seconds": outcome.interval_seconds,
+                    "n_checks": outcome.n_checks,
+                    "n_changed": outcome.n_changed,
+                    "query_hits": outcome.query_hits,
+                    "lambda_hat": outcome.lambda_hat,
+                    "optimal_interval_s": outcome.optimal_interval_s,
                     "ledger": {"reason": outcome.reason, "features": outcome.features},
                 }
                 if outcome.status in ("fresh", "due") and outcome.verdict == "confirmed":

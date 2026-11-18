@@ -166,6 +166,11 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
                     "ALTER TABLE facts ADD COLUMN IF NOT EXISTS last_extracted_at TIMESTAMP WITH TIME ZONE",
                     "ALTER TABLE facts ADD COLUMN IF NOT EXISTS delta_confirmed BOOLEAN DEFAULT FALSE",
                     "ALTER TABLE facts ADD COLUMN IF NOT EXISTS delta_saved_credits FLOAT DEFAULT 0.0",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS n_checks INTEGER DEFAULT 1",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS n_changed INTEGER DEFAULT 0",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS query_hits INTEGER DEFAULT 0",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS lambda_hat FLOAT DEFAULT 0.0",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS optimal_interval_s INTEGER",
                     "ALTER TABLE claims ADD COLUMN IF NOT EXISTS source_urls JSONB DEFAULT '[]'::jsonb",
                     "ALTER TABLE claims ADD COLUMN IF NOT EXISTS source_text_hash VARCHAR(64)",
                     "ALTER TABLE claims ADD COLUMN IF NOT EXISTS delta_confirmed BOOLEAN DEFAULT FALSE",
@@ -578,7 +583,7 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
     @app.get("/api/v1/costs")
     async def costs(request: Request, window: str = Query("24h", pattern="^(1h|24h|7d)$"), session=Depends(require_session)):
         hours = {"1h": 1, "24h": 24, "7d": 168}[window]
-        return await request.app.state.repo.costs(session["tenant_id"], hours, redis=request.app.state.redis)
+        return await request.app.state.repo.costs(session["tenant_id"], hours, redis=request.app.state.redis, settings=request.app.state.settings)
 
     @app.get("/api/v1/eval/datasets")
     async def eval_datasets(session=Depends(require_session)):

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+VERIFIER_DIR="$(dirname "$SCRIPT_DIR")/chronoguard/verifier"
+SIM_SCRIPT="$(dirname "$SCRIPT_DIR")/chronoguard/scripts/simulate_scheduler.py"
+
+cd "$VERIFIER_DIR"
+uv run python "$SIM_SCRIPT"
