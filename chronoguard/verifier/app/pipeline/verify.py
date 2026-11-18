@@ -16,8 +16,10 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from urllib.parse import urlsplit
 from uuid import uuid4
 
+import httpx
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
@@ -57,6 +59,10 @@ class Outcome:
     tokens: int = 0
     ledger_hit: bool = False
     verified_at: datetime | None = None
+    delta_confirmed: bool = False
+    delta_saved_credits: float = 0.0
+    source_urls: list[str] = field(default_factory=list)
+    source_text_hash: str = ""
 
     def claim_json(self) -> dict:
         return {
@@ -71,6 +77,7 @@ class Outcome:
             "support_confidence": self.support_confidence,
             "next_check_at": iso(self.next_check_at),
             "verified_at": iso(self.verified_at),
+            "delta_confirmed": self.delta_confirmed,
             "evidence": [item.model_dump(mode="json") for item in self.evidence[:6]],
             "reason": self.reason,
         }
@@ -88,6 +95,7 @@ class Outcome:
             "corrected_value": self.corrected_value,
             "next_check_at": iso(self.next_check_at),
             "verified_at": iso(self.verified_at),
+            "delta_confirmed": self.delta_confirmed,
             # Retained so a due claim can be revalidated without asking a model
             # to extract the answer again. Bifrost ignores unknown fields.
             "entity": self.claim.entity,
@@ -141,7 +149,7 @@ def adaptive_interval(category: str, verdict: str, current: int) -> int:
 
 
 class Verifier:
-    def __init__(self, settings, repository, redis, clock, models, tavily, buckets):
+    def __init__(self, settings, repository, redis, clock, models, tavily, buckets, http_client=None):
         self.settings = settings
         self.repo = repository
         self.redis = redis
@@ -149,6 +157,7 @@ class Verifier:
         self.models = models
         self.tavily = tavily
         self.buckets = buckets
+        self.http = http_client or getattr(tavily, "client", None) or httpx.AsyncClient(follow_redirects=False)
 
     # ----- policy and time ------------------------------------------------
 
@@ -176,6 +185,10 @@ class Verifier:
         if outcome.status not in ("fresh", "due", "stale"):
             return
         current = outcome.corrected_value if outcome.status == "stale" else outcome.claim.stated_value
+        source_urls = outcome.source_urls or [item.url for item in outcome.evidence if item.url]
+        source_text_hash = outcome.source_text_hash or (
+            digest(" ".join([item.snippet for item in outcome.evidence if item.snippet])) if outcome.evidence else ""
+        )
         mapping = {
             "fact_key": outcome.fact_key,
             "class_key": outcome.category,
@@ -187,6 +200,9 @@ class Verifier:
             "support_confidence": "" if outcome.support_confidence is None else str(outcome.support_confidence),
             "verified_at": iso(verified_at) or "",
             "evidence": json.dumps([item.model_dump(mode="json") for item in outcome.evidence[:6]]),
+            "source_urls": json.dumps(source_urls),
+            "source_text_hash": source_text_hash,
+            "delta_confirmed": "1" if outcome.delta_confirmed else "0",
         }
         await self.redis.hset(self.fact_redis(tenant, outcome.fact_hash), mapping=mapping)
         await self.redis.expire(self.fact_redis(tenant, outcome.fact_hash), 7 * DAY)
@@ -285,6 +301,18 @@ class Verifier:
             return outcome
 
         try:
+            # Delta Revalidation Fast-Path (flag delta.enabled):
+            if getattr(self.settings, "delta_enabled", False) and ledger:
+                source_urls_raw = ledger.get("source_urls")
+                source_urls = json.loads(source_urls_raw) if source_urls_raw else []
+                source_text_hash = ledger.get("source_text_hash")
+                if source_urls and source_text_hash:
+                    delta_outcome = await self._try_delta_revalidation(
+                        tenant, claim, policy, now, model_id, deadline, started, fkey, fhash, category, ledger, source_urls, source_text_hash
+                    )
+                    if delta_outcome is not None:
+                        return delta_outcome
+
             credits = estimated_credits(category)
             if not await self.buckets.take(tenant, "tavily", credits):
                 outcome.status, outcome.verdict, outcome.reason = "unverifiable", "unverifiable", "budget_exhausted"
@@ -374,6 +402,199 @@ class Verifier:
             outcome.evidence = []
         outcome.latency_ms = int((time.monotonic() - started) * 1000)
         return outcome
+
+    def _delta_success(
+        self,
+        outcome: Outcome,
+        ledger: dict,
+        claim: Claim,
+        policy: Policy,
+        now: datetime,
+        started: float,
+        credits_saved: float,
+    ) -> Outcome:
+        previous = int(ledger.get("interval_s") or 0)
+        interval = adaptive_interval(outcome.category, "confirmed", previous)
+        outcome.status = "fresh"
+        outcome.verdict = "confirmed"
+        outcome.freshness = float(ledger.get("freshness") or 1.0)
+        outcome.support_confidence = float(ledger.get("support_confidence") or 1.0)
+        outcome.interval_seconds = interval
+        outcome.next_check_at = now + timedelta(seconds=interval)
+        outcome.verified_at = now
+        outcome.delta_confirmed = True
+        outcome.delta_saved_credits = credits_saved
+        outcome.credits = 0.0
+        outcome.tokens = 0
+        outcome.reason = "delta_revalidated_source_unchanged"
+        try:
+            outcome.evidence = [Evidence.model_validate(item) for item in json.loads(ledger.get("evidence") or "[]")]
+        except (ValueError, TypeError):
+            outcome.evidence = []
+        outcome.latency_ms = int((time.monotonic() - started) * 1000)
+        return outcome
+
+    async def _try_delta_revalidation(
+        self,
+        tenant: str,
+        claim: Claim,
+        policy: Policy,
+        now: datetime,
+        model_id: str,
+        deadline: float,
+        started: float,
+        fkey: str,
+        fhash: str,
+        category,
+        ledger: dict,
+        source_urls: list[str],
+        source_text_hash: str,
+    ) -> Outcome | None:
+        if not source_urls:
+            return None
+        target_url = source_urls[0]
+        try:
+            parsed = urlsplit(target_url)
+            if not parsed.scheme or not parsed.netloc:
+                return None
+            cat_val = category.value if hasattr(category, "value") else str(category)
+            saved_credits = estimated_credits(category)
+
+            # Direct HTTP fetch from the original verified source URL
+            resp = await self.http.get(target_url, timeout=5.0)
+
+            if resp.status_code == 304:
+                outcome = Outcome(
+                    claim=claim,
+                    claim_id=str(uuid4()),
+                    fact_key=fkey,
+                    fact_hash=fhash,
+                    category=cat_val,
+                    source_urls=source_urls,
+                    source_text_hash=source_text_hash,
+                )
+                self._delta_success(outcome, ledger, claim, policy, now, started, saved_credits)
+                await self.write_ledger(tenant, outcome, now)
+                await self._record_delta_metrics(tenant, "304", saved_credits, 0)
+                return outcome
+
+            if resp.status_code == 200:
+                body_text = resp.text
+                curr_hash = digest(body_text)
+                if curr_hash == source_text_hash:
+                    outcome = Outcome(
+                        claim=claim,
+                        claim_id=str(uuid4()),
+                        fact_key=fkey,
+                        fact_hash=fhash,
+                        category=cat_val,
+                        source_urls=source_urls,
+                        source_text_hash=source_text_hash,
+                    )
+                    self._delta_success(outcome, ledger, claim, policy, now, started, saved_credits)
+                    await self.write_ledger(tenant, outcome, now)
+                    await self._record_delta_metrics(tenant, "hash_match", saved_credits, 0)
+                    return outcome
+
+                # Content changed on origin URL: skip Tavily search, judge newly fetched passage directly
+                snippet = body_text[:600].strip()
+                domain = parsed.hostname or "unknown"
+                evidence = [
+                    Evidence(
+                        id=str(uuid4()),
+                        url=target_url,
+                        domain=domain,
+                        title="Delta Source Page",
+                        snippet=snippet,
+                        published_at=now,
+                        retrieved_at=now,
+                        tier=1,
+                    )
+                ]
+                try:
+                    verdict, usage = await self.models.judge(claim, evidence)
+                except DependencyUnavailable:
+                    return None
+
+                if verdict.verdict in ("outdated", "contradicted") and not verdict.contradict_ids:
+                    verdict = Verdict(
+                        verdict=verdict.verdict,
+                        corrected_value=verdict.corrected_value,
+                        confidence=verdict.confidence or 0.95,
+                        support_ids=verdict.support_ids,
+                        contradict_ids=[evidence[0].id],
+                        as_of_note=verdict.as_of_note,
+                        rationale=verdict.rationale,
+                    )
+
+                tokens = int(usage.get("input_tokens", 0) + usage.get("output_tokens", 0))
+                await self.buckets.take(tenant, "llm", float(tokens))
+                prior = prior_stale(category, self.as_of(claim, model_id, now), now)
+                scored = score(verdict, evidence, category, now, prior, coverage=1.0)
+                if verdict.verdict in ("outdated", "contradicted"):
+                    allowed, rule = invalidation_allowed(verdict, evidence)
+                    if not allowed:
+                        verdict = Verdict(
+                            verdict="unverifiable",
+                            confidence=verdict.confidence,
+                            rationale=rule,
+                            support_ids=verdict.support_ids,
+                            contradict_ids=verdict.contradict_ids,
+                        )
+                        scored = {"freshness": None, "support_confidence": None, "features": {}}
+
+                outcome = Outcome(
+                    claim=claim,
+                    claim_id=str(uuid4()),
+                    fact_key=fkey,
+                    fact_hash=fhash,
+                    category=cat_val,
+                    verdict=verdict.verdict,
+                    freshness=scored["freshness"],
+                    support_confidence=scored["support_confidence"],
+                    features=scored.get("features", {}),
+                    support_ids=list(verdict.support_ids),
+                    contradict_ids=list(verdict.contradict_ids),
+                    corrected_value=verdict.corrected_value if verdict.verdict in ("outdated", "contradicted") else None,
+                    reason=f"delta_evaluated: {verdict.rationale or ''}",
+                    credits=0.0,
+                    tokens=tokens,
+                    delta_confirmed=False,
+                    delta_saved_credits=saved_credits,
+                    source_urls=source_urls,
+                    source_text_hash=curr_hash,
+                    evidence=evidence,
+                )
+                outcome.status = status_for(verdict, outcome.freshness, policy)
+                previous = int(ledger.get("interval_s") or 0)
+                outcome.interval_seconds = adaptive_interval(cat_val, verdict.verdict, previous)
+                retry = max(60, outcome.interval_seconds)
+                outcome.next_check_at = now + timedelta(seconds=outcome.interval_seconds if verdict.verdict != "unverifiable" else retry)
+                outcome.verified_at = now
+                outcome.latency_ms = int((time.monotonic() - started) * 1000)
+                await self.write_ledger(tenant, outcome, now)
+                await self._record_delta_metrics(tenant, "changed", saved_credits, tokens)
+                return outcome
+
+            await self._record_delta_metrics(tenant, "fallback", 0, 0)
+            return None
+        except Exception:
+            await self._record_delta_metrics(tenant, "fallback", 0, 0)
+            return None
+
+    async def _record_delta_metrics(self, tenant: str, result_type: str, credits_saved: float, tokens_saved: int):
+        try:
+            mkey = key(tenant, "delta", "metrics")
+            pipe = self.redis.pipeline()
+            pipe.hincrby(mkey, "total_checks", 1)
+            pipe.hincrby(mkey, f"checks_{result_type}", 1)
+            if credits_saved > 0:
+                pipe.hincrbyfloat(mkey, "credits_saved", credits_saved)
+            if tokens_saved > 0:
+                pipe.hincrby(mkey, "tokens_used_judge_only", tokens_saved)
+            await pipe.execute()
+        except Exception:
+            pass
 
     # ----- whole response -------------------------------------------------
 

@@ -139,6 +139,10 @@ chronoguard:
   guard:
     enabled: false
 
+  # Delta revalidation (default false)
+  delta:
+    enabled: false
+
   # Freshness scoring weights (Doc 4 §4.5.9)
   scoring:
     bias: -1.0

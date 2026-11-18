@@ -246,7 +246,7 @@ class Repository:
             await self.event(tenant, "verification.finished", {"response_id":response_id,"verdict":"unverifiable","reason":reason}, session)
         return annotation
 
-    async def costs(self, tenant, hours=24):
+    async def costs(self, tenant, hours=24, redis=None):
         start = datetime.now(UTC) - timedelta(hours=hours)
         async with self.database.sessions() as session:
             rows = (await session.execute(sa.select(db.cost_ledger).where(db.cost_ledger.c.tenant_id == tenant, db.cost_ledger.c.created_at >= start))).mappings().all()
@@ -256,6 +256,40 @@ class Repository:
                 .where(db.facts.c.tenant_id == tenant, db.verifications.c.created_at >= start)
                 .group_by(db.facts.c.fact_key).order_by(sa.desc(sa.func.sum(db.verifications.c.tavily_credits))).limit(10)
             )).mappings().all()
+
+        delta_metrics = {
+            "total_checks": 0,
+            "checks_304": 0,
+            "checks_hash_match": 0,
+            "checks_changed": 0,
+            "checks_fallback": 0,
+            "credits_saved": 0.0,
+            "tokens_saved": 0,
+            "hit_rate_pct": 0.0,
+        }
+        if redis is not None:
+            try:
+                raw_delta = await redis.hgetall(f"cg:{tenant}:delta:metrics")
+                if raw_delta:
+                    total = int(raw_delta.get("total_checks") or raw_delta.get(b"total_checks") or 0)
+                    c304 = int(raw_delta.get("checks_304") or raw_delta.get(b"checks_304") or 0)
+                    chash = int(raw_delta.get("checks_hash_match") or raw_delta.get(b"checks_hash_match") or 0)
+                    cchanged = int(raw_delta.get("checks_changed") or raw_delta.get(b"checks_changed") or 0)
+                    cfallback = int(raw_delta.get("checks_fallback") or raw_delta.get(b"checks_fallback") or 0)
+                    csaved = float(raw_delta.get("credits_saved") or raw_delta.get(b"credits_saved") or 0.0)
+                    tsaved = int(raw_delta.get("tokens_used_judge_only") or raw_delta.get(b"tokens_used_judge_only") or 0)
+                    delta_metrics = {
+                        "total_checks": total,
+                        "checks_304": c304,
+                        "checks_hash_match": chash,
+                        "checks_changed": cchanged,
+                        "checks_fallback": cfallback,
+                        "credits_saved": csaved,
+                        "tokens_saved": tsaved,
+                        "hit_rate_pct": round(((c304 + chash) / total * 100), 1) if total > 0 else 0.0,
+                    }
+            except Exception:
+                pass
 
         saved_kinds = {"tokens_saved", "cache_saved", "saved"}
         by_kind: dict[str, dict] = {}
@@ -317,4 +351,5 @@ class Repository:
             "by_day": [by_day[day] for day in sorted(by_day)],
             "facts": [dict(row) for row in facts],
             "items": [dict(row) for row in rows],
+            "delta_metrics": delta_metrics,
         }

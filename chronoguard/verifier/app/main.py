@@ -160,6 +160,15 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
                     "ALTER TABLE requests ADD COLUMN IF NOT EXISTS guard_tripped BOOLEAN DEFAULT FALSE",
                     "ALTER TABLE requests ADD COLUMN IF NOT EXISTS guard_reason VARCHAR(64)",
                     "ALTER TABLE requests ADD COLUMN IF NOT EXISTS query_signature TEXT",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS source_urls JSONB DEFAULT '[]'::jsonb",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS source_text_hash VARCHAR(64)",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS window_hash VARCHAR(64)",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS last_extracted_at TIMESTAMP WITH TIME ZONE",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS delta_confirmed BOOLEAN DEFAULT FALSE",
+                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS delta_saved_credits FLOAT DEFAULT 0.0",
+                    "ALTER TABLE claims ADD COLUMN IF NOT EXISTS source_urls JSONB DEFAULT '[]'::jsonb",
+                    "ALTER TABLE claims ADD COLUMN IF NOT EXISTS source_text_hash VARCHAR(64)",
+                    "ALTER TABLE claims ADD COLUMN IF NOT EXISTS delta_confirmed BOOLEAN DEFAULT FALSE",
                 ]:
                     try:
                         await conn.execute(sa.text(col_sql))
@@ -569,7 +578,7 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
     @app.get("/api/v1/costs")
     async def costs(request: Request, window: str = Query("24h", pattern="^(1h|24h|7d)$"), session=Depends(require_session)):
         hours = {"1h": 1, "24h": 24, "7d": 168}[window]
-        return await request.app.state.repo.costs(session["tenant_id"], hours)
+        return await request.app.state.repo.costs(session["tenant_id"], hours, redis=request.app.state.redis)
 
     @app.get("/api/v1/eval/datasets")
     async def eval_datasets(session=Depends(require_session)):

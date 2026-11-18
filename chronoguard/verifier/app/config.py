@@ -34,6 +34,7 @@ class Settings(BaseSettings):
     source_denylist: list[str] = Field(default_factory=list)
     shadow_enabled: bool = Field(False)
     guard_enabled: bool = Field(False)
+    delta_enabled: bool = Field(False)
     # Model knowledge cutoffs, ISO dates keyed by the model id used through
     # Bifrost. An unknown model is treated as 18 months old, never as current.
     model_cutoffs: dict[str, str] = Field(default_factory=dict)

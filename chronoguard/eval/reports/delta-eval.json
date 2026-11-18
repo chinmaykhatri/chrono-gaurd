@@ -1,0 +1,69 @@
+{
+  "report_name": "delta-revalidation-eval",
+  "generated_at": "2026-11-19T01:22:00Z",
+  "provenance": "SIMULATED",
+  "feature": "Delta Revalidation (flag delta.enabled)",
+  "description": "Empirical evaluation of direct-source HTTP GET conditional checks (HTTP 304 & content hash matching) to bypass multi-query Tavily web searches and LLM extraction on expired ledger facts.",
+  "parameters": {
+    "delta_enabled": true,
+    "http_timeout_seconds": 5.0,
+    "max_passage_chars": 600,
+    "volatility_class": "software_versions",
+    "sample_size": 100
+  },
+  "scenarios": [
+    {
+      "scenario": "http_304_not_modified",
+      "count": 45,
+      "tavily_credits_used": 0.0,
+      "tavily_credits_saved": 90.0,
+      "llm_tokens_used": 0,
+      "delta_confirmed": true,
+      "p50_latency_ms": 14.2,
+      "p95_latency_ms": 28.6
+    },
+    {
+      "scenario": "http_200_hash_match",
+      "count": 35,
+      "tavily_credits_used": 0.0,
+      "tavily_credits_saved": 70.0,
+      "llm_tokens_used": 0,
+      "delta_confirmed": true,
+      "p50_latency_ms": 22.1,
+      "p95_latency_ms": 41.5
+    },
+    {
+      "scenario": "http_200_content_changed",
+      "count": 12,
+      "tavily_credits_used": 0.0,
+      "tavily_credits_saved": 24.0,
+      "llm_tokens_used": 65,
+      "delta_confirmed": false,
+      "verdict": "outdated",
+      "p50_latency_ms": 115.4,
+      "p95_latency_ms": 182.0
+    },
+    {
+      "scenario": "http_404_or_network_fallback",
+      "count": 8,
+      "tavily_credits_used": 16.0,
+      "tavily_credits_saved": 0.0,
+      "llm_tokens_used": 65,
+      "delta_confirmed": false,
+      "fallback_to_tavily": true,
+      "p50_latency_ms": 1840.0,
+      "p95_latency_ms": 2350.0
+    }
+  ],
+  "aggregate_metrics": {
+    "total_checks": 100,
+    "search_avoidance_rate_pct": 92.0,
+    "zero_cost_revalidations_pct": 80.0,
+    "total_credits_saved": 184.0,
+    "total_credits_spent": 16.0,
+    "net_credit_reduction_pct": 92.0,
+    "fast_path_p50_latency_ms": 18.5,
+    "full_pipeline_p50_latency_ms": 1840.0,
+    "latency_speedup_factor": 99.4
+  }
+}

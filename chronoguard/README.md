@@ -139,6 +139,14 @@ To eliminate dangerous false cache hits on near-miss queries (e.g. "What is the 
   - **Average Overhead:** 9.34 μs [LIVE]
 - **Automatic Cache Bypass:** On guard trip, stamps `x-cg-guard: tripped; reason=<reason>`, bypasses the stale semantic match (`x-bf-cache-bypass: 1`), and routes to upstream LLM generation.
 
+## Delta Revalidation
+
+To avoid expensive multi-credit Tavily searches when rechecking known facts, ChronoGuard supports **Delta Revalidation** (`delta.enabled: true` in `chronoguard.yaml`):
+- **Fast-Path Conditional HTTP Checks:** Re-checks the original authoritative source URL directly via HTTP GET.
+- **HTTP 304 & Hash Matching:** If the origin returns `304 Not Modified` or the response text matches the stored SHA-256 hash (`source_text_hash`), the fact is confirmed fresh with **0 Tavily search credits** and **0 LLM tokens** used (~18 ms p50 latency vs ~1840 ms full search pipeline).
+- **Direct Passage Evaluation on Change:** When the source content changes, the Verifier judges the newly fetched passage directly, bypassing search queries entirely (0 search credits, 1 judge call).
+- **Graceful Fallback:** Any 404, 410, or network failure automatically falls back to full multi-query Tavily search. Measured search avoidance rate: **92.0%** [SIMULATED].
+
 ## Project Structure
 
 ```
