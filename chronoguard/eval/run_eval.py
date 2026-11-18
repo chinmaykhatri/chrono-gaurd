@@ -15,28 +15,33 @@ import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
-DATASET_PATH = BASE_DIR / "dataset" / "stalebench-mini.json"
+REPORTS_DIR = BASE_DIR / "reports"
 RESULTS_DIR = BASE_DIR / "results"
+REPORTS_DIR.mkdir(parents=True, exist_ok=True)
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def load_dataset():
-    if not DATASET_PATH.exists():
-        print(f"Error: Dataset not found at {DATASET_PATH}")
+def load_dataset(dataset_name: str = "stalebench-mini"):
+    path = BASE_DIR / "dataset" / f"{dataset_name}.json"
+    if not path.exists():
+        print(f"Error: Dataset not found at {path}")
         sys.exit(1)
-    with open(DATASET_PATH, "r", encoding="utf-8") as f:
-        return json.load(f)
+    with open(path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+        if isinstance(data, dict) and "items" in data:
+            return data["items"], data.get("name", dataset_name)
+        return data, dataset_name
 
 
-def run_benchmark():
-    items = load_dataset()
+def run_benchmark(dataset_name: str = "stalebench-mini"):
+    items, display_name = load_dataset(dataset_name)
     total = len(items)
     outdated = [it for it in items if it.get("label") in ("outdated", "contradicted")]
     current = [it for it in items if it.get("label") == "current"]
 
     print("=" * 72)
     print("CHRONOGUARD EVALUATION BENCHMARK")
-    print(f"Dataset: StaleBench-Mini ({total} items across 6 volatility classes)")
+    print(f"Dataset: {display_name} ({total} items)")
     print(f"Ground truth: {len(outdated)} outdated/contradicted, {len(current)} current/static")
     print("=" * 72)
 
@@ -122,14 +127,26 @@ def run_benchmark():
             "latency_p95_ms": p95,
         })
 
-    report_path = RESULTS_DIR / "eval_report.json"
+    report_filename = f"{dataset_name}-benchmark.json" if "freshqa" in dataset_name else "eval_report.json"
+    report_path = REPORTS_DIR / report_filename
+    report_data = {
+        "dataset": dataset_name,
+        "display_name": display_name,
+        "items": total,
+        "provenance": "external_benchmark" if "freshqa" in dataset_name else "internal_benchmark",
+        "results": summary_rows,
+    }
     with open(report_path, "w", encoding="utf-8") as f:
-        json.dump({"dataset": "stalebench-mini", "items": total, "results": summary_rows}, f, indent=2)
+        json.dump(report_data, f, indent=2)
+
+    with open(RESULTS_DIR / "eval_report.json", "w", encoding="utf-8") as f:
+        json.dump(report_data, f, indent=2)
 
     print("=" * 75)
     print(f"Report written to {report_path}")
 
 
 if __name__ == "__main__":
-    run_benchmark()
+    target = sys.argv[1] if len(sys.argv) > 1 else "stalebench-mini"
+    run_benchmark(target)
 

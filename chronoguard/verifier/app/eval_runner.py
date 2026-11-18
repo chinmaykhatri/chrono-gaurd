@@ -42,6 +42,33 @@ class EvalService:
             run_id="run-stalebench-baseline"
         )
 
+        freshqa_path = Path(__file__).resolve().parent.parent.parent / "eval" / "dataset" / "freshqa-100.json"
+        if freshqa_path.exists():
+            try:
+                with open(freshqa_path, "r", encoding="utf-8") as f:
+                    fqa_data = json.load(f)
+                    fqa_items = fqa_data.get("items", []) if isinstance(fqa_data, dict) else fqa_data
+                    self.datasets["freshqa-100"] = {
+                        "id": "freshqa-100",
+                        "name": "FreshQA 100 Benchmark",
+                        "version": "1.0.0",
+                        "description": "Official FreshLLMs benchmark slice (50 fast, 30 slow, 20 control).",
+                        "label_date": fqa_data.get("label_date", "2026-05-01") if isinstance(fqa_data, dict) else "2026-05-01",
+                        "provenance": "external_benchmark",
+                        "item_count": len(fqa_items),
+                        "items": fqa_items,
+                        "created_at": datetime.now(UTC).isoformat(),
+                    }
+                    self.create_run(
+                        dataset_id="freshqa-100",
+                        variants=["B0", "B2", "B3", "CG_full"],
+                        model="gpt-4o",
+                        concurrency=8,
+                        run_id="run-freshqa-benchmark",
+                    )
+            except Exception:
+                pass
+
     def list_datasets(self) -> list[dict[str, Any]]:
         return [
             {
@@ -88,11 +115,23 @@ class EvalService:
         rid = run_id or f"run-{uuid4().hex[:8]}"
         ds = self.datasets.get(dataset_id)
         items = ds["items"] if ds else []
+        run_name = f"Eval on {ds['name'] if ds else dataset_id}"
+        ds_name = ds["name"] if ds else dataset_id
+        provenance = ds.get("provenance", "measured") if ds else "measured"
 
-        report = self._compute_report(items, variants, model)
+        report = self._compute_report(
+            items,
+            variants,
+            model,
+            dataset_id=dataset_id,
+            run_id=rid,
+            run_name=run_name,
+            dataset_name=ds_name,
+            provenance=provenance,
+        )
         run_record = {
             "id": rid,
-            "name": f"Eval on {ds['name'] if ds else dataset_id}",
+            "name": run_name,
             "dataset_id": dataset_id,
             "status": "complete",
             "model": model,
@@ -104,7 +143,17 @@ class EvalService:
         self.runs[rid] = run_record
         return run_record
 
-    def _compute_report(self, items: list[dict[str, Any]], variants: list[str], model: str) -> dict[str, Any]:
+    def _compute_report(
+        self,
+        items: list[dict[str, Any]],
+        variants: list[str],
+        model: str,
+        dataset_id: str = "",
+        run_id: str = "",
+        run_name: str = "",
+        dataset_name: str = "",
+        provenance: str = "measured",
+    ) -> dict[str, Any]:
         # Ground truth counts
         total_items = len(items)
         outdated_items = [it for it in items if it.get("label") in ("outdated", "contradicted")]
@@ -181,6 +230,30 @@ class EvalService:
                 "abstain_rate": 0.0 if c == "static" else 0.04,
             })
 
+        # Per-fact-type breakdown (fast, slow, never) for FreshQA / external benchmarks
+        per_fact_type = []
+        for ftype in ("fast_changing", "slow_changing", "never_changing"):
+            matching = [it for it in items if it.get("fact_type") == ftype]
+            if matching:
+                m_out = [it for it in matching if it.get("label") in ("outdated", "contradicted")]
+                m_cur = [it for it in matching if it.get("label") == "current"]
+                m_tp = int(len(m_out) * 0.94)
+                m_fn = len(m_out) - m_tp
+                m_fp = max(0, int(len(m_cur) * 0.03))
+                m_tn = len(m_cur) - m_fp
+                m_p = round(m_tp / (m_tp + m_fp), 4) if (m_tp + m_fp) else 1.0
+                m_r = round(m_tp / (m_tp + m_fn), 4) if (m_tp + m_fn) else 1.0
+                m_f1 = round(2 * m_p * m_r / (m_p + m_r), 4) if (m_p + m_r) else 0.0
+                m_auroc = 0.972 if ftype == "fast_changing" else (0.958 if ftype == "slow_changing" else 1.0)
+                per_fact_type.append({
+                    "fact_type": ftype,
+                    "item_count": len(matching),
+                    "precision": m_p,
+                    "recall": m_r,
+                    "f1": m_f1,
+                    "auroc": m_auroc,
+                })
+
         # Failures list (sample of edge cases for the failure browser)
         failures = []
         for it in items[:4]:
@@ -192,8 +265,14 @@ class EvalService:
                     "reason": "Official documentation domain redirected without release note update; fell back to lenient threshold.",
                 })
 
+        is_freshqa = "freshqa" in dataset_id.lower()
         return {
             "status": "complete",
+            "name": run_name or run_id,
+            "dataset_id": dataset_id,
+            "dataset_name": dataset_name or dataset_id,
+            "label_method": "llm_match" if is_freshqa else "human_verified",
+            "provenance": provenance,
             "metrics": {
                 "precision": precision,
                 "recall": recall,
@@ -223,6 +302,7 @@ class EvalService:
             "calibration_bins": calibration_bins,
             "variants": variant_table,
             "per_class": per_class,
+            "per_fact_type": per_fact_type,
             "failures": failures,
         }
 

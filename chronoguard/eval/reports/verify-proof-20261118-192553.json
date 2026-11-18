@@ -1,0 +1,67 @@
+{
+  "gate": "G1",
+  "timestamp": "2026-11-18T19:25:53.147417+00:00",
+  "passed": false,
+  "results": [
+    {
+      "name": "go_test_all",
+      "passed": true,
+      "detail": "4 packages passed",
+      "label": "LIVE"
+    },
+    {
+      "name": "pytest_all",
+      "passed": false,
+      "detail": "\n=================================== ERRORS ====================================\n_____________________ ERROR collecting tests/test_api.py ______________________\ntests\\test_api.py:8: in <module>\n    from app.main import create_app\napp\\main.py:23: in <module>\n    from app.eval_runner import eval_servi",
+      "label": "LIVE"
+    },
+    {
+      "name": "console_build",
+      "passed": true,
+      "detail": "TypeScript + Vite build succeeded",
+      "label": "LIVE"
+    },
+    {
+      "name": "verifier_health",
+      "passed": true,
+      "detail": "HTTP 200",
+      "label": "LIVE"
+    },
+    {
+      "name": "bifrost_health",
+      "passed": true,
+      "detail": "HTTP 200",
+      "label": "LIVE"
+    },
+    {
+      "name": "postgres_ready",
+      "passed": true,
+      "detail": "Connected",
+      "label": "LIVE"
+    },
+    {
+      "name": "redis_ready",
+      "passed": true,
+      "detail": "Connected",
+      "label": "LIVE"
+    },
+    {
+      "name": "tavily_key",
+      "passed": true,
+      "detail": "Present",
+      "label": "LIVE"
+    },
+    {
+      "name": "e2e_live_latest",
+      "passed": true,
+      "detail": "e2e-live-20261115-200100.log: ALL PASS",
+      "label": "LIVE"
+    },
+    {
+      "name": "no_fabricated_ui",
+      "passed": true,
+      "detail": "Clean",
+      "label": "LIVE"
+    }
+  ]
+}

@@ -154,8 +154,9 @@ chronoguard/
 
 See repository license file. Bifrost is used under its original license.
 
-## Credits
+## Credits & Citations
 
 - **Bifrost** by [Maxim AI](https://maxim.ai) — inference gateway and semantic cache
 - **Tavily** — live evidence retrieval API
+- **FreshLLMs / FreshQA** — Vu, T., Iyyer, M., et al. (2023). *FreshLLMs: Refreshing Large Language Models with Search Engine Augmentation*. arXiv:2310.03214. Benchmark dataset slice used for external drift evaluation under Apache-2.0.
 

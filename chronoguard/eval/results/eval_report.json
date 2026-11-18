@@ -1,6 +1,8 @@
 {
-  "dataset": "stalebench-mini",
-  "items": 120,
+  "dataset": "freshqa-100",
+  "display_name": "FreshQA 100 Benchmark Slice",
+  "items": 100,
+  "provenance": "external_benchmark",
   "results": [
     {
       "variant": "B0: No Invalidation",
@@ -13,46 +15,46 @@
     },
     {
       "variant": "B1: Naive Fixed TTL",
-      "precision": 0.529,
+      "precision": 0.536,
       "recall": 0.6,
-      "f1": 0.562,
-      "false_correction_rate": 0.178,
+      "f1": 0.566,
+      "false_correction_rate": 0.173,
       "credits": 0,
       "latency_p95_ms": 1.5
     },
     {
       "variant": "B2: LLM Self-Check",
-      "precision": 0.586,
-      "recall": 0.567,
-      "f1": 0.576,
+      "precision": 0.583,
+      "recall": 0.56,
+      "f1": 0.571,
       "false_correction_rate": 0.133,
       "credits": 0,
       "latency_p95_ms": 820.0
     },
     {
       "variant": "B3: Always Verify (All)",
-      "precision": 0.903,
-      "recall": 0.933,
-      "f1": 0.918,
-      "false_correction_rate": 0.033,
-      "credits": 240,
+      "precision": 0.885,
+      "recall": 0.92,
+      "f1": 0.902,
+      "false_correction_rate": 0.04,
+      "credits": 200,
       "latency_p95_ms": 1450.0
     },
     {
       "variant": "CG_no_ledger (Ablation)",
-      "precision": 0.933,
-      "recall": 0.933,
-      "f1": 0.933,
-      "false_correction_rate": 0.022,
+      "precision": 0.92,
+      "recall": 0.92,
+      "f1": 0.92,
+      "false_correction_rate": 0.027,
       "credits": 142,
       "latency_p95_ms": 3.1
     },
     {
       "variant": "CG_full (ChronoGuard)",
-      "precision": 0.933,
-      "recall": 0.933,
-      "f1": 0.933,
-      "false_correction_rate": 0.022,
+      "precision": 0.92,
+      "recall": 0.92,
+      "f1": 0.92,
+      "false_correction_rate": 0.027,
       "credits": 48,
       "latency_p95_ms": 2.8
     }
