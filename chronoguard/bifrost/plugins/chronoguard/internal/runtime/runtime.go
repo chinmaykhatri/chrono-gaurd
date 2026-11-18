@@ -22,6 +22,7 @@ type Config struct {
 	RedisURL string `json:"redis_url"`
 	VerifierURL string `json:"verifier_url"`
 	InternalKeyEnv string `json:"internal_key_env"`
+	InternalKey string `json:"internal_key"`
 	DefaultPolicy string `json:"default_policy"`
 	SingleTenantID string `json:"single_tenant_id"`
 	Enabled bool `json:"enabled"`
@@ -39,7 +40,11 @@ type State struct {
 const StateKey schemas.BifrostContextKey="chronoguard.state"
 type Runtime struct { Config Config; Key string; Redis *redis.Client; Verifier *verifierclient.Client }
 func New(cfg Config)(*Runtime,error){
-	if cfg.InternalKeyEnv==""{cfg.InternalKeyEnv="CG_INTERNAL_KEY"};key:=os.Getenv(cfg.InternalKeyEnv)
+	key := cfg.InternalKey
+	if key == "" {
+		if cfg.InternalKeyEnv==""{cfg.InternalKeyEnv="CG_INTERNAL_KEY"}
+		key = os.Getenv(cfg.InternalKeyEnv)
+	}
 	c,err:=verifierclient.New(cfg.VerifierURL,key);if err!=nil{return nil,err}
 	opts,err:=redis.ParseURL(cfg.RedisURL);if err!=nil{return nil,errors.New("invalid Redis URL")}
 	opts.DialTimeout=time.Second;opts.ReadTimeout=50*time.Millisecond;opts.WriteTimeout=50*time.Millisecond;opts.MaxRetries=0
@@ -53,6 +58,7 @@ func Tenant(ctx *schemas.BifrostContext,fallback string)string {
 	// These are authenticated/resolved context keys, never client identity headers.
 	if s,ok:=ctx.Value(schemas.BifrostContextKeyGovernanceVirtualKeyID).(string);ok&&s!=""{return "vk:"+s}
 	if s,ok:=ctx.Value(schemas.BifrostContextKeyUserID).(string);ok&&s!=""{return "user:"+s}
+	if fallback == "" { return "default" }
 	return fallback
 }
 func(r *Runtime)Load(ctx context.Context,tenant,id string)(*manifest.Manifest,error){

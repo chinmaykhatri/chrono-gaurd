@@ -66,3 +66,4 @@
 ### Spike 11: Metrics Exposure
 - **Finding:** Upstream Bifrost exposes Prometheus metrics at `/metrics` through the `telemetry` plugin.
 - **ChronoGuard metrics:** Verifier exposes Prometheus metrics (`cg_cache_hits_total`, `cg_stale_served_total`, `cg_claims_verified_total`, `cg_tavily_credits_used_total`, `cg_cascade_regens_total`) at `GET /metrics`.
+

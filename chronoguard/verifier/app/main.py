@@ -191,6 +191,8 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, error):
+        import logging
+        logging.error("Validation error details: %s", error.errors())
         # Pydantic errors include input values by default; never return passwords/prompts.
         return JSONResponse({"error":{"code":"validation_error","message":"Request does not match the API schema", "details":[{"loc":e["loc"],"type":e["type"]} for e in error.errors()]}}, status_code=422)
 

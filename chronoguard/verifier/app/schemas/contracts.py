@@ -32,7 +32,7 @@ class Usage(Contract):
 
 
 class Ingest(Contract):
-    tenant_id: str = Field("default", min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
+    tenant_id: str = Field("default", min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_:-]+$")
     request_id: str = Field(min_length=1, max_length=256)
     cache_id: str | None = Field(None, max_length=256)
     origin: Literal["provider", "legacy_cache", "regenerated"] = "provider"
@@ -45,6 +45,13 @@ class Ingest(Contract):
     policy: Literal["strict", "standard", "lenient"] = "standard"
     now: datetime | None = None
     deadline_ms: int = Field(4500, ge=100, le=30000)
+
+    @field_validator("tenant_id", mode="before")
+    @classmethod
+    def default_tenant(cls, value):
+        if not value:
+            return "default"
+        return value
 
     @field_validator("now")
     @classmethod
@@ -119,7 +126,7 @@ POLICIES = {
 
 
 class Revalidate(Contract):
-    tenant_id: str = Field("default", min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_-]+$")
+    tenant_id: str = Field("default", min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_:-]+$")
     cache_id: str = Field(min_length=1, max_length=256)
     policy: Literal["strict", "standard", "lenient"] = "standard"
     deadline_ms: int = Field(3000, ge=100, le=30000)

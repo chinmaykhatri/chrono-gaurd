@@ -139,3 +139,4 @@ Tested via `chronoguard/verifier/tests/test_audit_failure_modes.py`:
 | **Tavily Down** | Catches `DependencyUnavailable`, records `unverifiable` | **Fail Open** (Serves with warning annotation) | **Fail Closed** (Blocks) |
 | **Judge LLM Down** | Catches `DependencyUnavailable`, records `unverifiable` | **Fail Open** (Serves with warning annotation) | **Fail Closed** (Blocks) |
 | **Verifier Down** | `cg-front` HTTP client returns `verifier unavailable` | **Fail Open** (Provider passthrough on miss) | **Fail Closed** (Blocks on hit) |
+
