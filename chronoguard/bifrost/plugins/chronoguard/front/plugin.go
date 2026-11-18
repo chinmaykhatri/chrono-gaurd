@@ -18,12 +18,14 @@ package front
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	"github.com/chronoguard/chronoguard/internal/classify"
 	"github.com/chronoguard/chronoguard/internal/decide"
+	"github.com/chronoguard/chronoguard/internal/guard"
 	"github.com/chronoguard/chronoguard/internal/manifest"
 	"github.com/chronoguard/chronoguard/internal/runtime"
 	"github.com/maximhq/bifrost/core/schemas"
@@ -103,6 +105,12 @@ func (p *Plugin) HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.
 			s.Shadow = true
 		}
 
+		// Check guard mode header or config
+		guardHeader := req.CaseInsensitiveHeaderLookup("x-cg-guard")
+		if guardHeader == "1" || strings.EqualFold(guardHeader, "true") || p.rt.Config.GuardEnabled {
+			s.GuardEnabled = true
+		}
+
 		// Internal requests from verifier's regeneration loop skip ChronoGuard.
 		internalKey := req.CaseInsensitiveHeaderLookup("x-cg-internal-key")
 		if internalKey != "" && runtime.Trusted(internalKey, p.rt.Key) {
@@ -130,6 +138,8 @@ func (p *Plugin) PreRequestHook(ctx *schemas.BifrostContext, req *schemas.Bifros
 		s.Model = req.ChatRequest.Model
 		s.Messages = extractMessages(req)
 		text := lastUserMessage(req)
+		s.Prompt = text
+		s.QuerySignature = guard.Extract(text).Encode()
 		s.Class = classify.Prompt(text)
 
 		// Apply TTL / bypass if classified
@@ -232,6 +242,65 @@ func (p *Plugin) handleHit(ctx *schemas.BifrostContext, s *runtime.State, res *s
 		defer cancel()
 		p.rt.Redis.HIncrBy(bgCtx, manifest.Key(s.Tenant, "manifest_hits", cacheID), "count", 1)
 	}()
+
+	// Semantic Hit Guard: inspect query signature against cached prompt signature
+	if s.GuardEnabled && s.Prompt != "" && (m.PromptText != "" || m.QuerySignature != "") {
+		inSig := guard.Extract(s.Prompt)
+		cachedPrompt := m.PromptText
+		cachedSig := guard.Extract(cachedPrompt)
+		if tripped, reason := guard.Check(inSig, cachedSig); tripped {
+			s.GuardTripped = true
+			s.GuardReason = reason
+			s.Decision = "guard_bypass"
+			s.Annotation = map[string]any{
+				"status":        "bypassed",
+				"decision":      "guard_bypass",
+				"reason":        reason,
+				"guard_tripped": true,
+			}
+			log.Printf("[cg-front] semantic guard tripped: %s (incoming: %q, cached: %q); bypassing cache", reason, s.Prompt, m.PromptText)
+
+			// Bypass cached response: regenerate fresh answer via provider
+			payload := map[string]any{
+				"tenant_id":   s.Tenant,
+				"cache_id":    cacheID,
+				"policy":      s.Policy.Name,
+				"deadline_ms": s.Policy.BlockingBudgetMS,
+				"reason":      "guard_bypass",
+				"force":       true,
+			}
+			deadline, cancel := context.WithTimeout(ctx, time.Duration(s.Policy.BlockingBudgetMS)*time.Millisecond)
+			defer cancel()
+			var result runtime.Result
+			if err := p.rt.Verifier.Post(deadline, "/internal/v1/revalidate", payload, &result); err == nil {
+				if result.Replacement != nil && result.Replacement.Text != "" {
+					runtime.Replace(res, result.Replacement.Text)
+				}
+			}
+
+			go func() {
+				bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+				defer cancel()
+				hitPayload := map[string]any{
+					"tenant_id":       s.Tenant,
+					"request_id":      s.ID,
+					"cache_id":        cacheID,
+					"origin":          "guard_bypassed",
+					"model_id":        s.Model,
+					"policy":          s.Policy.Name,
+					"prompt_class":    s.Class,
+					"cache_status":    "hit",
+					"decision":        "guard_bypass",
+					"guard_tripped":   true,
+					"guard_reason":    s.GuardReason,
+					"query_signature": s.QuerySignature,
+				}
+				_ = p.rt.Verifier.Post(bgCtx, "/internal/v1/record-hit", hitPayload, nil)
+			}()
+
+			return res, nil, nil
+		}
+	}
 
 	// Run pure-Go decision engine.
 	d := decide.Decide(m, s.Policy, now)
@@ -427,6 +496,13 @@ func (p *Plugin) HTTPTransportResponseHeadersHook(ctx *schemas.BifrostContext, r
 		}
 	}
 
+	if s.GuardTripped {
+		resp.Headers["x-cg-guard"] = fmt.Sprintf("tripped; reason=%s", s.GuardReason)
+		resp.Headers["x-bf-cache-bypass"] = "1"
+	} else if s.GuardEnabled {
+		resp.Headers["x-cg-guard"] = "pass"
+	}
+
 	return nil
 }
 
@@ -448,6 +524,12 @@ func (p *Plugin) HTTPTransportPostHook(ctx *schemas.BifrostContext, req *schemas
 		resp.Headers["x-cg-policy"] = s.Policy.Name
 		if s.Cache != "" {
 			resp.Headers["x-cg-cache-id"] = s.Cache
+		}
+		if s.GuardTripped {
+			resp.Headers["x-cg-guard"] = fmt.Sprintf("tripped; reason=%s", s.GuardReason)
+			resp.Headers["x-bf-cache-bypass"] = "1"
+		} else if s.GuardEnabled {
+			resp.Headers["x-cg-guard"] = "pass"
 		}
 	}
 

@@ -1,0 +1,486 @@
+{
+  "description": "Evaluation pairs for ChronoGuard Semantic-Hit Guard (60 pairs: 30 near-miss, 30 true paraphrases)",
+  "total_pairs": 60,
+  "pairs": [
+    {
+      "id": "nm-01",
+      "incoming": "What is the capital of Australia?",
+      "cached": "What is the capital of Austria?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-02",
+      "incoming": "Who is the president of France?",
+      "cached": "Who is the president of Germany?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-03",
+      "incoming": "Who is the CEO of Apple?",
+      "cached": "Who is the CEO of Microsoft?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-04",
+      "incoming": "What is the latest version of React?",
+      "cached": "What is the latest version of Vue?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-05",
+      "incoming": "What is the market cap of Bitcoin?",
+      "cached": "What is the market cap of Ethereum?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-06",
+      "incoming": "What is the population of London?",
+      "cached": "What is the population of Paris?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-07",
+      "incoming": "Who is the governor of California?",
+      "cached": "Who is the governor of Texas?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-08",
+      "incoming": "Is Python memory safe?",
+      "cached": "Is Rust memory safe?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-09",
+      "incoming": "Who developed PlayStation?",
+      "cached": "Who developed Nintendo?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-10",
+      "incoming": "What is the distance to Mars?",
+      "cached": "What is the distance to Venus?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "entity_mismatch"
+    },
+    {
+      "id": "nm-11",
+      "incoming": "Who is the CEO of Apple?",
+      "cached": "Who was the CEO of Apple in 2010?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "year_mismatch"
+    },
+    {
+      "id": "nm-12",
+      "incoming": "Who was the president of the United States in 1999?",
+      "cached": "Who was the president of the United States in 2008?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "year_mismatch"
+    },
+    {
+      "id": "nm-13",
+      "incoming": "When was the iPhone announced?",
+      "cached": "When was the iPhone announced in 2007?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "year_mismatch"
+    },
+    {
+      "id": "nm-14",
+      "incoming": "Who won the FIFA World Cup in 2018?",
+      "cached": "Who won the FIFA World Cup in 2022?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "year_mismatch"
+    },
+    {
+      "id": "nm-15",
+      "incoming": "What was the revenue of Microsoft in 2021?",
+      "cached": "What was the revenue of Microsoft in 2023?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "year_mismatch"
+    },
+    {
+      "id": "nm-16",
+      "incoming": "Is Python 3.12 supported?",
+      "cached": "Is Python 3.10 supported?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "number_mismatch"
+    },
+    {
+      "id": "nm-17",
+      "incoming": "What features came in Go 1.22?",
+      "cached": "What features came in Go 1.18?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "number_mismatch"
+    },
+    {
+      "id": "nm-18",
+      "incoming": "Who hosted the Summer Olympics in 2024?",
+      "cached": "Who hosted the Summer Olympics in 2020?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "year_mismatch"
+    },
+    {
+      "id": "nm-19",
+      "incoming": "Who was Prime Minister of the UK in 2020?",
+      "cached": "Who was Prime Minister of the UK in 2024?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "year_mismatch"
+    },
+    {
+      "id": "nm-20",
+      "incoming": "What was the US inflation rate in 2022?",
+      "cached": "What was the US inflation rate in 2024?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "year_mismatch"
+    },
+    {
+      "id": "nm-21",
+      "incoming": "Who is the current CEO of Microsoft?",
+      "cached": "Who is the former CEO of Microsoft?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "polarity_mismatch"
+    },
+    {
+      "id": "nm-22",
+      "incoming": "Is WebGPU supported in Firefox?",
+      "cached": "Is WebGPU not supported in Firefox?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "polarity_mismatch"
+    },
+    {
+      "id": "nm-23",
+      "incoming": "What is the latest release of Ubuntu?",
+      "cached": "What was the first release of Ubuntu?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "polarity_mismatch"
+    },
+    {
+      "id": "nm-24",
+      "incoming": "Who is the current mayor of New York?",
+      "cached": "Who is the previous mayor of New York?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "polarity_mismatch"
+    },
+    {
+      "id": "nm-25",
+      "incoming": "Who founded Apple?",
+      "cached": "Who is the CEO of Apple?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "relation_mismatch"
+    },
+    {
+      "id": "nm-26",
+      "incoming": "What is the capital of Australia?",
+      "cached": "What is the largest city in Australia?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "relation_mismatch"
+    },
+    {
+      "id": "nm-27",
+      "incoming": "Who is the founder of Amazon?",
+      "cached": "Who is the CEO of Amazon?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "relation_mismatch"
+    },
+    {
+      "id": "nm-28",
+      "incoming": "Is Docker enabled by default?",
+      "cached": "Is Docker not enabled by default?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "polarity_mismatch"
+    },
+    {
+      "id": "nm-29",
+      "incoming": "Who is the author of Harry Potter?",
+      "cached": "Who is the director of Harry Potter?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "relation_mismatch"
+    },
+    {
+      "id": "nm-30",
+      "incoming": "Is Redis open source?",
+      "cached": "Is Redis not open source?",
+      "type": "near_miss",
+      "expected_trip": true,
+      "expected_reason": "polarity_mismatch"
+    },
+    {
+      "id": "tp-01",
+      "incoming": "What is the capital of Australia?",
+      "cached": "What is Australia's capital?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-02",
+      "incoming": "Who is the CEO of Apple?",
+      "cached": "Who serves as the CEO of Apple?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-03",
+      "incoming": "What is the latest version of React?",
+      "cached": "What is the current version of React?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-04",
+      "incoming": "When was Python 3.12 released?",
+      "cached": "What was the release date of Python 3.12?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-05",
+      "incoming": "Who founded Microsoft?",
+      "cached": "Who was the founder of Microsoft?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-06",
+      "incoming": "What is the population of Tokyo in 2024?",
+      "cached": "How many people live in Tokyo in 2024?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-07",
+      "incoming": "Who is the president of France?",
+      "cached": "Who holds the presidency of France?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-08",
+      "incoming": "Is Go 1.22 released?",
+      "cached": "Has Go 1.22 been released yet?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-09",
+      "incoming": "What is the official currency of Japan?",
+      "cached": "Which currency is used in Japan?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-10",
+      "incoming": "Where are the headquarters of Google?",
+      "cached": "Where is Google headquartered?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-11",
+      "incoming": "Who won the Super Bowl in 2024?",
+      "cached": "Which team won the 2024 Super Bowl?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-12",
+      "incoming": "How tall is Mount Everest?",
+      "cached": "What is the height of Mount Everest?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-13",
+      "incoming": "What is the atomic number of Gold?",
+      "cached": "What is Gold's atomic number?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-14",
+      "incoming": "When was the United Nations founded in 1945?",
+      "cached": "In 1945, when was the United Nations established?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-15",
+      "incoming": "Who wrote Hamlet?",
+      "cached": "Who is the author of Hamlet?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-16",
+      "incoming": "What is the speed of light in vacuum?",
+      "cached": "How fast does light travel in a vacuum?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-17",
+      "incoming": "Who painted the Mona Lisa?",
+      "cached": "Which artist created the Mona Lisa?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-18",
+      "incoming": "Is TypeScript 5.4 available?",
+      "cached": "Has TypeScript 5.4 launched?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-19",
+      "incoming": "What is the boiling point of Water?",
+      "cached": "At what temperature does Water boil?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-20",
+      "incoming": "What is the distance between Earth and Moon?",
+      "cached": "How far is the Moon from Earth?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-21",
+      "incoming": "Who discovered Penicillin?",
+      "cached": "Who was responsible for discovering Penicillin?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-22",
+      "incoming": "What is the capital of Canada?",
+      "cached": "What city is Canada's capital?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-23",
+      "incoming": "When was Java 21 LTS released?",
+      "cached": "What is the release date of Java 21 LTS?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-24",
+      "incoming": "Who directed Inception?",
+      "cached": "Who was the director of Inception?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-25",
+      "incoming": "What is the largest ocean on Earth?",
+      "cached": "Which ocean is the largest on Earth?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-26",
+      "incoming": "Who is the Prime Minister of Canada?",
+      "cached": "Who serves as Canada's Prime Minister?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-27",
+      "incoming": "When was Apollo 11 launched in 1969?",
+      "cached": "In 1969, on what date did Apollo 11 launch?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-28",
+      "incoming": "What is the chemical formula for Methane?",
+      "cached": "What is Methane's chemical formula?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-29",
+      "incoming": "Who is the CEO of Tesla?",
+      "cached": "Who currently leads Tesla as CEO?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    },
+    {
+      "id": "tp-30",
+      "incoming": "What is the capital of Spain?",
+      "cached": "Which city is Spain's capital?",
+      "type": "true_paraphrase",
+      "expected_trip": false,
+      "expected_reason": ""
+    }
+  ]
+}

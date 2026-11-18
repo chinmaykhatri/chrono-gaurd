@@ -21,6 +21,8 @@ type Manifest struct {
 	TenantID string `json:"tenant_id"`
 	CacheID string `json:"cache_id"`
 	ResponseID string `json:"response_id"`
+	PromptText string `json:"prompt_text,omitempty"`
+	QuerySignature string `json:"query_signature,omitempty"`
 	Status string `json:"status"`
 	BestBefore *time.Time `json:"best_before"`
 	HardExpiry *time.Time `json:"hard_expiry"`

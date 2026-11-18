@@ -131,6 +131,14 @@ chronoguard:
   # Kill switch
   kill_switch: false
 
+  # Shadow mode (default false)
+  shadow:
+    enabled: false
+
+  # Semantic-hit guard (default false)
+  guard:
+    enabled: false
+
   # Freshness scoring weights (Doc 4 §4.5.9)
   scoring:
     bias: -1.0

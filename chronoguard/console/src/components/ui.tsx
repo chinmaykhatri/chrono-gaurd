@@ -659,6 +659,7 @@ export function LifecycleInspector({ data }: { data: RecordData }) {
       details: [
         { label: 'Final Action', value: decision },
         { label: 'Cost', value: req.cost_usd ? `$${number(req.cost_usd, 4)}` : '$0.0000' },
+        ...(req.guard_tripped ? [{ label: 'Semantic Hit Guard', value: `Tripped: ${display(req.guard_reason)} (bypassed cache)` }] : []),
       ],
     },
   ];

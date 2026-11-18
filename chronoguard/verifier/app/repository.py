@@ -46,7 +46,10 @@ class Repository:
                 messages = [m.model_dump() for m in data.messages]
                 decision_shadow = getattr(data, "decision_shadow", None)
                 shadow_reason = getattr(data, "shadow_reason", None)
-                await session.execute(db.requests.insert().values(id=request_id, tenant_id=tenant, bifrost_request_id=data.request_id, model_id=data.model_id, provider=data.provider, prompt_hash=digest(json.dumps(messages, sort_keys=True)), messages=messages if store_content else None, policy=data.policy, prompt_class=data.prompt_class, cache_status="miss", cache_id=data.cache_id, decision="passthrough", decision_shadow=decision_shadow, shadow_reason=shadow_reason))
+                guard_tripped = getattr(data, "guard_tripped", False)
+                guard_reason = getattr(data, "guard_reason", None)
+                query_signature = getattr(data, "query_signature", None)
+                await session.execute(db.requests.insert().values(id=request_id, tenant_id=tenant, bifrost_request_id=data.request_id, model_id=data.model_id, provider=data.provider, prompt_hash=digest(json.dumps(messages, sort_keys=True)), messages=messages if store_content else None, policy=data.policy, prompt_class=data.prompt_class, cache_status="miss", cache_id=data.cache_id, decision="passthrough", decision_shadow=decision_shadow, shadow_reason=shadow_reason, guard_tripped=guard_tripped, guard_reason=guard_reason, query_signature=query_signature))
                 annotation = {"response_id":response_id, "tenant_id":tenant, "decision":"passthrough", "cache":"miss", "cache_id":data.cache_id, "mode":"async", "status":"pending", "clock":"real", "min_freshness":None, "policy":data.policy, "claims":[], "original_text":None, "annotations_url":f"/api/v1/responses/{response_id}/annotations"}
                 await session.execute(db.responses.insert().values(id=response_id, tenant_id=tenant, request_id=request_id, origin=data.origin, content=data.response_text if store_content else None, content_hash=digest(data.response_text), model_id=data.model_id, input_tokens=data.usage.input_tokens, output_tokens=data.usage.output_tokens, annotation_status="pending", annotation=annotation))
                 # The payload is transient job state, cleared when the job finishes;
@@ -63,7 +66,7 @@ class Repository:
                     return previous, False
             raise
 
-    async def record_hit(self, tenant: str, request_id: str, model_id: str, cache_id: str, policy: str, prompt_class: str, decision: str = "serve", decision_shadow: str | None = None, shadow_reason: str | None = None, latency_ms: int = 1):
+    async def record_hit(self, tenant: str, request_id: str, model_id: str, cache_id: str, policy: str, prompt_class: str, decision: str = "serve", decision_shadow: str | None = None, shadow_reason: str | None = None, guard_tripped: bool = False, guard_reason: str | None = None, query_signature: str | None = None, latency_ms: int = 1):
         try:
             async with self.database.sessions.begin() as session:
                 req_id = str(uuid4())
@@ -82,6 +85,9 @@ class Repository:
                     decision=decision,
                     decision_shadow=decision_shadow,
                     shadow_reason=shadow_reason,
+                    guard_tripped=guard_tripped,
+                    guard_reason=guard_reason,
+                    query_signature=query_signature,
                     total_latency_ms=latency_ms,
                     hook_overhead_us=120,
                 ))

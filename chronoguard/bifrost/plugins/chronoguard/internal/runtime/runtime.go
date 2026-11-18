@@ -27,12 +27,14 @@ type Config struct {
 	SingleTenantID string `json:"single_tenant_id"`
 	Enabled bool `json:"enabled"`
 	ShadowEnabled bool `json:"shadow_enabled"`
+	GuardEnabled bool `json:"guard_enabled"`
 }
 type State struct {
 	ID,Tenant,Class,Model string
 	Policy decide.Policy
-	Internal,Skip,Stream,Verified,Shadow bool
-	ShadowDecision,ShadowReason string
+	Internal,Skip,Stream,Verified,Shadow,GuardEnabled,GuardTripped bool
+	ShadowDecision,ShadowReason,GuardReason string
+	Prompt,QuerySignature string
 	Messages []map[string]string
 	Annotation map[string]any
 	Decision string
@@ -84,10 +86,14 @@ func Replace(res *schemas.BifrostResponse,text string){
 func Fail() *schemas.BifrostError {code:="chronoguard_unverifiable";status:=503;fallback:=false;return &schemas.BifrostError{IsBifrostError:true,StatusCode:&status,AllowFallbacks:&fallback,Error:&schemas.ErrorField{Code:&code,Message:"ChronoGuard could not verify this response within the configured policy."}}}
 func HTTPFail(status int,message string)*schemas.HTTPResponse{b,_:=json.Marshal(map[string]any{"error":map[string]string{"code":"chronoguard_unverifiable","message":message}});return &schemas.HTTPResponse{StatusCode:status,Headers:map[string]string{"Content-Type":"application/json"},Body:b}}
 func Payload(s *State,text,cacheID string)map[string]any{
-	var id any;if cacheID!=""{id=cacheID};m:=map[string]any{"request_id":s.ID,"tenant_id":s.Tenant,"cache_id":id,"origin":"provider","model_id":s.Model,"messages":s.Messages,"response_text":text,"prompt_class":s.Class,"policy":s.Policy.Name,"usage":map[string]int{"input_tokens":0,"output_tokens":0}}
+	var id any;if cacheID!=""{id=cacheID};m:=map[string]any{"request_id":s.ID,"tenant_id":s.Tenant,"cache_id":id,"origin":"provider","model_id":s.Model,"messages":s.Messages,"prompt_text":s.Prompt,"query_signature":s.QuerySignature,"response_text":text,"prompt_class":s.Class,"policy":s.Policy.Name,"usage":map[string]int{"input_tokens":0,"output_tokens":0}}
 	if s.Shadow {
 		m["decision_shadow"] = s.ShadowDecision
 		m["shadow_reason"] = s.ShadowReason
+	}
+	if s.GuardTripped {
+		m["guard_tripped"] = true
+		m["guard_reason"] = s.GuardReason
 	}
 	return m
 }

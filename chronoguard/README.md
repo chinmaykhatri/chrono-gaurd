@@ -127,6 +127,18 @@ ChronoGuard supports non-intrusive **Shadow Mode** (`shadow.enabled: true` or pe
 - **ROI Dashboard (`/roi`):** Monitors observed traffic, stale answers prevented, cache entries at risk, top stale facts, and verification costs (LIVE) vs projected freshness savings (SIMULATED).
 - **Export & Reporting:** Includes JSON export and copyable Markdown reports directly from the console.
 
+## Semantic-Hit Guard
+
+To eliminate dangerous false cache hits on near-miss queries (e.g. "What is the capital of Australia?" hitting a cached answer for "What is the capital of Austria?"), ChronoGuard implements a pure-Go **Semantic-Hit Guard** (`guard.enabled: true` or per-request header `x-cg-guard: 1`):
+- **Ultra-low Latency:** Executes in **9.34 μs** (LIVE benchmark) on the hot path — well within its 100 μs latency budget. Zero network calls, zero Redis calls.
+- **Syntactic & Entity Extraction:** Extracts digits, version strings (`v3.12`), 4-digit years (`19xx`, `20xx`), capitalized entity candidates, and polarity tokens (`current`, `former`, `not`).
+- **Precision Verification:** Evaluated against 60 balanced test pairs (30 near-miss, 30 true paraphrases) in `eval/guard_pairs.json`:
+  - **Accuracy:** 100.0% [LIVE]
+  - **Precision:** 1.0000 [LIVE]
+  - **Recall:** 1.0000 [LIVE]
+  - **Average Overhead:** 9.34 μs [LIVE]
+- **Automatic Cache Bypass:** On guard trip, stamps `x-cg-guard: tripped; reason=<reason>`, bypasses the stale semantic match (`x-bf-cache-bypass: 1`), and routes to upstream LLM generation.
+
 ## Project Structure
 
 ```

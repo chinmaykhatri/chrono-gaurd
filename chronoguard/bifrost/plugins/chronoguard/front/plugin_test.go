@@ -113,6 +113,37 @@ func TestShadowModeHeaders(t *testing.T) {
 	}
 }
 
+func TestSemanticHitGuardHeaders(t *testing.T) {
+	s := &runtime.State{
+		ID:           "req-guard-1",
+		Decision:     "guard_bypass",
+		Class:        "slow_facts",
+		GuardEnabled: true,
+		GuardTripped: true,
+		GuardReason:  "entity_mismatch",
+		Policy:       decide.Default("standard"),
+	}
+	ctx := &schemas.BifrostContext{}
+	ctx.SetValue(runtime.StateKey, s)
+	p := &Plugin{}
+	resp := &schemas.HTTPResponseMetadata{
+		Headers: make(map[string]string),
+	}
+	err := p.HTTPTransportResponseHeadersHook(ctx, nil, resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Headers["x-cg-guard"] != "tripped; reason=entity_mismatch" {
+		t.Fatalf("expected x-cg-guard=tripped; reason=entity_mismatch, got %v", resp.Headers["x-cg-guard"])
+	}
+	if resp.Headers["x-bf-cache-bypass"] != "1" {
+		t.Fatalf("expected x-bf-cache-bypass=1, got %v", resp.Headers["x-bf-cache-bypass"])
+	}
+	if resp.Headers["x-cg-decision"] != "guard_bypass" {
+		t.Fatalf("expected x-cg-decision=guard_bypass, got %v", resp.Headers["x-cg-decision"])
+	}
+}
+
 func BenchmarkManifestAnnotation(b *testing.B) {
 	f := float64(85)
 	m := &manifest.Manifest{

@@ -152,6 +152,21 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         cfg = settings or Settings()
         app.state.settings = cfg
         app.state.database = database or db.Database(cfg.database_url.get_secret_value())
+        try:
+            async with app.state.database.engine.begin() as conn:
+                for col_sql in [
+                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS decision_shadow VARCHAR(32)",
+                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS shadow_reason TEXT",
+                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS guard_tripped BOOLEAN DEFAULT FALSE",
+                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS guard_reason VARCHAR(64)",
+                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS query_signature TEXT",
+                ]:
+                    try:
+                        await conn.execute(sa.text(col_sql))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
         app.state.redis = redis_client or redis.from_url(cfg.redis_url.get_secret_value(), decode_responses=True, socket_timeout=2, socket_connect_timeout=2)
         app.state.repo = Repository(app.state.database)
         app.state.http = httpx.AsyncClient(follow_redirects=False, trust_env=False)
@@ -292,6 +307,9 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             decision=body.decision,
             decision_shadow=body.decision_shadow,
             shadow_reason=body.shadow_reason,
+            guard_tripped=body.guard_tripped,
+            guard_reason=body.guard_reason,
+            query_signature=body.query_signature,
             latency_ms=body.latency_ms,
         )
         return {"ok": True, "request_id": req_id}
