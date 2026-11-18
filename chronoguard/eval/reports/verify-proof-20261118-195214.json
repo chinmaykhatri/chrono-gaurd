@@ -1,0 +1,67 @@
+{
+  "gate": "G1",
+  "timestamp": "2026-11-18T19:52:14.708041+00:00",
+  "passed": true,
+  "results": [
+    {
+      "name": "go_test_all",
+      "passed": true,
+      "detail": "5 packages passed",
+      "label": "LIVE"
+    },
+    {
+      "name": "pytest_all",
+      "passed": true,
+      "detail": "46 passed in 7.45s",
+      "label": "LIVE"
+    },
+    {
+      "name": "console_build",
+      "passed": true,
+      "detail": "TypeScript + Vite build succeeded",
+      "label": "LIVE"
+    },
+    {
+      "name": "verifier_health",
+      "passed": true,
+      "detail": "HTTP 200",
+      "label": "LIVE"
+    },
+    {
+      "name": "bifrost_health",
+      "passed": true,
+      "detail": "HTTP 200",
+      "label": "LIVE"
+    },
+    {
+      "name": "postgres_ready",
+      "passed": true,
+      "detail": "Connected",
+      "label": "LIVE"
+    },
+    {
+      "name": "redis_ready",
+      "passed": true,
+      "detail": "Connected",
+      "label": "LIVE"
+    },
+    {
+      "name": "tavily_key",
+      "passed": true,
+      "detail": "Present",
+      "label": "LIVE"
+    },
+    {
+      "name": "e2e_live_latest",
+      "passed": true,
+      "detail": "e2e-live-20261115-200100.log: ALL PASS",
+      "label": "LIVE"
+    },
+    {
+      "name": "no_fabricated_ui",
+      "passed": true,
+      "detail": "Clean",
+      "label": "LIVE"
+    }
+  ]
+}

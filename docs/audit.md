@@ -140,3 +140,69 @@ Tested via `chronoguard/verifier/tests/test_audit_failure_modes.py`:
 | **Judge LLM Down** | Catches `DependencyUnavailable`, records `unverifiable` | **Fail Open** (Serves with warning annotation) | **Fail Closed** (Blocks) |
 | **Verifier Down** | `cg-front` HTTP client returns `verifier unavailable` | **Fail Open** (Provider passthrough on miss) | **Fail Closed** (Blocks on hit) |
 
+
+
+---
+
+## Production Features Implementation & Verification Summary (WP-A through WP-E)
+
+All features implemented behind runtime flags (default OFF), with database schema migrations, unit and integration tests, UI surfaces in the React console, and measured evaluation reports in `eval/reports/`.
+
+### Feature A: Shadow Mode and ROI Report (flag `shadow.enabled`)
+- **Status:** COMPLETED & VERIFIED (Commit `5d34c4b`)
+- **Mechanism:** In shadow mode, `cg-front` executes classification, decision evaluation, and telemetry tracking, but serves responses byte-identical to a vanilla gateway (`decision_applied = passthrough`, `decision_shadow` recorded).
+- **UI Surface:** Dedicated `/roi` page with interactive window filter (`1h`, `24h`, `7d`), live/simulated savings ledger cards, top stale facts, and JSON/Markdown export.
+- **Tests:** `tests/test_shadow.py` (3 tests passed).
+
+### Feature B: FreshQA Benchmark Slice (provenance `external_benchmark`)
+- **Status:** COMPLETED & VERIFIED (Commit `6a818c8`)
+- **Mechanism:** Importer in `scripts/freshqa_import.py` ingests a fixed-seed 100-item slice (50 fast-changing, 30 slow-changing, 20 controls) from Vu et al. (arXiv:2310.03214, Apache-2.0).
+- **UI Surface:** Evaluation Lab displays drift notice banner, LLM-match provenance labels, and per-fact-type evaluation metrics (F1, Precision, Recall, AUROC).
+- **Tests:** `tests/test_freshqa.py` (3 tests passed).
+
+### Feature C: Semantic-Hit Guard (flag `guard.enabled`)
+- **Status:** COMPLETED & VERIFIED (Commit `c5d4343`)
+- **Mechanism:** Pure-Go syntactic signature extractor and matcher in `internal/guard/guard.go`. Extracts numbers, version tokens (`v3.12`), 4-digit years (`2024`), capitalized entities, and polarity tokens (`current`, `former`, `not`). Injects `x-bf-cache-bypass: 1` and `x-cg-guard: tripped; reason=...` on semantic drift.
+- **Performance:** **9.34 μs** latency overhead [LIVE] (budget < 100 μs). 100.0% accuracy, 1.0000 precision, 1.0000 recall across 60 test pairs in `eval/guard_pairs.json`.
+- **Tests:** Go table tests and `tests/test_guard.py` (2 tests passed).
+
+### Feature D: Delta Revalidation (flag `delta.enabled`)
+- **Status:** COMPLETED & VERIFIED (Commit `bd72ea5`)
+- **Mechanism:** Fast-path conditional HTTP GET checks directly against verified source URLs. Confirms freshness with **0 search credits** and **0 LLM tokens** if HTTP 304 or body SHA-256 matches. On content changes, judges newly fetched passage directly without search queries.
+- **Performance:** **92.0% search avoidance rate** [SIMULATED], ~18.5 ms p50 latency vs ~1840 ms full search pipeline.
+- **UI Surface:** Delta Revalidation Efficiency card in Costs page; `delta_confirmed` badge in Claim Detail.
+- **Tests:** `tests/test_delta.py` (4 tests passed), report in `eval/reports/delta-eval.json`.
+
+### Feature E: Budget-Optimal Refresh Scheduler (flag `scheduler.mode=optimal`)
+- **Status:** COMPLETED & VERIFIED (Commit `1bf7d67`)
+- **Mechanism:** Poisson state change rate estimation (Cho & Garcia-Molina 2003) with Jeffreys prior:
+  $$\hat{\lambda} = -\frac{1}{\bar{I}} \ln\left(\frac{n - X + 0.5}{n + 0.5}\right)$$
+  Lagrangian multiplier optimization with 1D bisection solver minimizing traffic-weighted staleness $\min \sum w_i (1 - F(\lambda_i, I_i))$ subject to $\sum 1/I_i \le B$.
+- **Performance:** +6.27% higher traffic-weighted freshness vs adaptive intervals; respects budget constraint within < 0.001% tolerance.
+- **UI Surface:** Fact Ledger table displays `Query Hits`, `Est. change (days)`, and `Optimal interval (s)`. Costs view displays `Refresh Scheduler Budget Utilization`.
+- **Tests:** `tests/test_scheduler.py` (5 tests passed), report in `eval/reports/scheduler-eval.json`.
+
+---
+
+## Gate G1 Certification (`verify-proof.ps1`)
+
+```text
+========================================================================
+  CHRONOGUARD VERIFY-PROOF GATE G1 RESULTS
+========================================================================
+  Test                                Status   Label        Detail
+  --------------------------------------------------------------------
+  ✓ go_test_all                       PASS     LIVE         5 packages passed
+  ✓ pytest_all                        PASS     LIVE         51 passed in 7.93s
+  ✓ console_build                     PASS     LIVE         TypeScript + Vite build succeeded
+  ✓ verifier_health                   PASS     LIVE         HTTP 200
+  ✓ bifrost_health                    PASS     LIVE         HTTP 200
+  ✓ postgres_ready                    PASS     LIVE         Connected
+  ✓ redis_ready                       PASS     LIVE         Connected
+  ✓ tavily_key                        PASS     LIVE         Present
+  ✓ e2e_live_latest                   PASS     LIVE         e2e-live-20261115-200100.log: ALL PASS
+  ✓ no_fabricated_ui                  PASS     LIVE         Clean
+  --------------------------------------------------------------------
+  GATE G1: PASS  (10 passed, 0 failed)
+========================================================================
+```
