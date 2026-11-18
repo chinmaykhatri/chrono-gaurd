@@ -43,6 +43,8 @@ class Ingest(Contract):
     usage: Usage = Field(default_factory=Usage)
     prompt_class: Category = Category.SLOW
     policy: Literal["strict", "standard", "lenient"] = "standard"
+    decision_shadow: str | None = Field(None, max_length=32)
+    shadow_reason: str | None = None
     now: datetime | None = None
     deadline_ms: int = Field(4500, ge=100, le=30000)
 
@@ -130,5 +132,27 @@ class Revalidate(Contract):
     cache_id: str = Field(min_length=1, max_length=256)
     policy: Literal["strict", "standard", "lenient"] = "standard"
     deadline_ms: int = Field(3000, ge=100, le=30000)
-    reason: Literal["due", "stale", "unverified", "manual"] = "due"
+    reason: Literal["due", "stale", "unverified", "manual", "swr", "blocking_revalidation", "evict_regen", "lazy_eviction", "shadow_revalidation"] = "due"
     force: bool = False
+
+
+class RecordHit(Contract):
+    tenant_id: str = Field("default", min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_:-]+$")
+    request_id: str = Field(min_length=1, max_length=256)
+    cache_id: str = Field(min_length=1, max_length=256)
+    origin: Literal["provider", "legacy_cache", "regenerated"] = "legacy_cache"
+    model_id: str = Field(default="configured", max_length=256)
+    policy: Literal["strict", "standard", "lenient"] = "standard"
+    prompt_class: Category = Category.SLOW
+    cache_status: Literal["hit", "hit_direct", "hit_semantic"] = "hit"
+    decision: str = "serve"
+    decision_shadow: str | None = None
+    shadow_reason: str | None = None
+    latency_ms: int = Field(default=1, ge=0)
+
+    @field_validator("tenant_id", mode="before")
+    @classmethod
+    def default_tenant(cls, value):
+        if not value:
+            return "default"
+        return value

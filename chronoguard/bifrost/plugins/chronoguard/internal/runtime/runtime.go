@@ -26,11 +26,13 @@ type Config struct {
 	DefaultPolicy string `json:"default_policy"`
 	SingleTenantID string `json:"single_tenant_id"`
 	Enabled bool `json:"enabled"`
+	ShadowEnabled bool `json:"shadow_enabled"`
 }
 type State struct {
 	ID,Tenant,Class,Model string
 	Policy decide.Policy
-	Internal,Skip,Stream,Verified bool
+	Internal,Skip,Stream,Verified,Shadow bool
+	ShadowDecision,ShadowReason string
 	Messages []map[string]string
 	Annotation map[string]any
 	Decision string
@@ -82,7 +84,12 @@ func Replace(res *schemas.BifrostResponse,text string){
 func Fail() *schemas.BifrostError {code:="chronoguard_unverifiable";status:=503;fallback:=false;return &schemas.BifrostError{IsBifrostError:true,StatusCode:&status,AllowFallbacks:&fallback,Error:&schemas.ErrorField{Code:&code,Message:"ChronoGuard could not verify this response within the configured policy."}}}
 func HTTPFail(status int,message string)*schemas.HTTPResponse{b,_:=json.Marshal(map[string]any{"error":map[string]string{"code":"chronoguard_unverifiable","message":message}});return &schemas.HTTPResponse{StatusCode:status,Headers:map[string]string{"Content-Type":"application/json"},Body:b}}
 func Payload(s *State,text,cacheID string)map[string]any{
-	var id any;if cacheID!=""{id=cacheID};return map[string]any{"request_id":s.ID,"tenant_id":s.Tenant,"cache_id":id,"origin":"provider","model_id":s.Model,"messages":s.Messages,"response_text":text,"prompt_class":s.Class,"policy":s.Policy.Name,"usage":map[string]int{"input_tokens":0,"output_tokens":0}}
+	var id any;if cacheID!=""{id=cacheID};m:=map[string]any{"request_id":s.ID,"tenant_id":s.Tenant,"cache_id":id,"origin":"provider","model_id":s.Model,"messages":s.Messages,"response_text":text,"prompt_class":s.Class,"policy":s.Policy.Name,"usage":map[string]int{"input_tokens":0,"output_tokens":0}}
+	if s.Shadow {
+		m["decision_shadow"] = s.ShadowDecision
+		m["shadow_reason"] = s.ShadowReason
+	}
+	return m
 }
 type Result struct {ResponseID string `json:"response_id"`;Status string `json:"status"`;Decision string `json:"decision"`;Annotation map[string]any `json:"annotation"`;RepairedText *string `json:"repaired_text"`;Replacement *struct{Text string `json:"text"`} `json:"replacement"`}
 func SafeAnnotation(a map[string]any)bool{

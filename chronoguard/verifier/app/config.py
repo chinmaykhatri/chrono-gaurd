@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     llm_tokens_per_hour: int = Field(400000, ge=1000)
     source_authorities: dict[str, int] = Field(default_factory=dict)
     source_denylist: list[str] = Field(default_factory=list)
+    shadow_enabled: bool = Field(False)
     # Model knowledge cutoffs, ISO dates keyed by the model id used through
     # Bifrost. An unknown model is treated as 18 months old, never as current.
     model_cutoffs: dict[str, str] = Field(default_factory=dict)

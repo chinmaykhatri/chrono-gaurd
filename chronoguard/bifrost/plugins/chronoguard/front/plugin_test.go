@@ -3,7 +3,9 @@ package front
 import (
 	"testing"
 
+	"github.com/chronoguard/chronoguard/internal/decide"
 	"github.com/chronoguard/chronoguard/internal/manifest"
+	"github.com/chronoguard/chronoguard/internal/runtime"
 	"github.com/maximhq/bifrost/core/schemas"
 )
 
@@ -78,6 +80,36 @@ func TestNilManifestAnnotation(t *testing.T) {
 	ann := manifestAnnotation(nil, "fail_open")
 	if ann["status"] != "unknown" {
 		t.Fatal("nil manifest should produce unknown status")
+	}
+}
+
+func TestShadowModeHeaders(t *testing.T) {
+	s := &runtime.State{
+		ID:             "req-test-1",
+		Decision:       "passthrough",
+		Class:          "software_versions",
+		Shadow:         true,
+		ShadowDecision: "evict_regen",
+		Policy:         decide.Default("standard"),
+	}
+	ctx := &schemas.BifrostContext{}
+	ctx.SetValue(runtime.StateKey, s)
+	p := &Plugin{}
+	resp := &schemas.HTTPResponseMetadata{
+		Headers: make(map[string]string),
+	}
+	err := p.HTTPTransportResponseHeadersHook(ctx, nil, resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.Headers["x-cg-shadow"] != "1" {
+		t.Fatalf("expected x-cg-shadow=1, got %v", resp.Headers["x-cg-shadow"])
+	}
+	if resp.Headers["x-cg-decision-shadow"] != "evict_regen" {
+		t.Fatalf("expected x-cg-decision-shadow=evict_regen, got %v", resp.Headers["x-cg-decision-shadow"])
+	}
+	if resp.Headers["x-cg-decision"] != "passthrough" {
+		t.Fatalf("expected x-cg-decision=passthrough, got %v", resp.Headers["x-cg-decision"])
 	}
 }
 

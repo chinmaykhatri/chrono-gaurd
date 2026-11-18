@@ -31,6 +31,7 @@ from app.schemas.contracts import (
     Ingest,
     Message,
     Policy,
+    RecordHit,
     Revalidate,
 )
 from app.scoring.freshness import CLASSES
@@ -278,6 +279,22 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         return await verifier.revalidate(
             body.tenant_id, body.cache_id, policy, body.deadline_ms, body.reason, body.force
         )
+
+    @app.post("/internal/v1/record-hit", dependencies=[Depends(require_internal)])
+    async def record_hit_endpoint(body: RecordHit, request: Request):
+        req_id = await request.app.state.repo.record_hit(
+            tenant=body.tenant_id,
+            request_id=body.request_id,
+            model_id=body.model_id,
+            cache_id=body.cache_id,
+            policy=body.policy,
+            prompt_class=body.prompt_class.value if hasattr(body.prompt_class, "value") else str(body.prompt_class),
+            decision=body.decision,
+            decision_shadow=body.decision_shadow,
+            shadow_reason=body.shadow_reason,
+            latency_ms=body.latency_ms,
+        )
+        return {"ok": True, "request_id": req_id}
 
     @app.get("/api/v1/settings/health")
     async def settings_health(request: Request, session=Depends(require_session)):
@@ -640,6 +657,111 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             "series": [buckets[name] for name in sorted(buckets)],
         }
 
+    @app.get("/api/v1/roi")
+    async def get_roi(request: Request, window: str = Query("24h", pattern="^(1h|24h|7d)$"), session=Depends(require_session)):
+        tenant = session["tenant_id"]
+        start = window_start(window)
+        async with request.app.state.database.sessions() as transaction:
+            req_rows = (await transaction.execute(
+                sa.select(db.requests).where(db.requests.c.tenant_id == tenant, db.requests.c.created_at >= start)
+            )).mappings().all()
+            cache_rows = (await transaction.execute(
+                sa.select(db.cache_entries).where(db.cache_entries.c.tenant_id == tenant)
+            )).mappings().all()
+            fact_rows = (await transaction.execute(
+                sa.select(db.facts).where(db.facts.c.tenant_id == tenant)
+            )).mappings().all()
+            ledger_rows = (await transaction.execute(
+                sa.select(db.cost_ledger).where(db.cost_ledger.c.tenant_id == tenant, db.cost_ledger.c.created_at >= start)
+            )).mappings().all()
+
+        total_requests = len(req_rows)
+        hits = [r for r in req_rows if r["cache_status"] in ("hit_direct", "hit_semantic", "hit")]
+        hit_rate = (len(hits) / total_requests) if total_requests > 0 else 0.0
+
+        stale_shadow_decisions = ("evict_regen", "evict_lazy", "fail_closed")
+        stale_would_have_served = sum(
+            1 for r in req_rows
+            if r.get("decision_shadow") in stale_shadow_decisions
+            or (r.get("cache_status") in ("hit_direct", "hit_semantic", "hit") and r.get("decision") in stale_shadow_decisions)
+        )
+
+        entries_at_risk = 0
+        for entry in cache_rows:
+            if entry.get("status") in ("stale", "expired", "evicted"):
+                entries_at_risk += 1
+            else:
+                m = entry.get("manifest") or {}
+                if any(c.get("status") == "stale" for c in m.get("claims", [])):
+                    entries_at_risk += 1
+
+        stale_facts_list = []
+        for fact in fact_rows:
+            if fact.get("last_verdict") in ("outdated", "unsupported") or fact.get("current_value") != (fact.get("ledger") or {}).get("initial_value"):
+                f_hash = fact.get("fact_hash")
+                entries_count = sum(
+                    1 for e in cache_rows
+                    if any(c.get("fact_key_hash") == f_hash or c.get("fact_key") == fact.get("fact_key") for c in (e.get("manifest") or {}).get("claims", []))
+                )
+                initial_val = (fact.get("ledger") or {}).get("initial_value") or fact.get("current_value")
+                stale_facts_list.append({
+                    "fact_id": fact.get("id"),
+                    "fact_key": fact.get("fact_key"),
+                    "cached_value": initial_val,
+                    "current_value": fact.get("current_value"),
+                    "last_verdict": fact.get("last_verdict") or "outdated",
+                    "entries_affected": max(1, entries_count),
+                    "hits": fact.get("revision", 1),
+                })
+        stale_facts_list.sort(key=lambda x: (x["entries_affected"], x["hits"]), reverse=True)
+        top_stale_facts = stale_facts_list[:10]
+
+        live_tavily_credits = sum(r["units"] for r in ledger_rows if r["kind"] == "tavily_credits")
+        live_usd_costs = sum(r["usd"] for r in ledger_rows if r["usd"] is not None)
+        verification_cost_usd = round(live_usd_costs, 4)
+
+        estimated_stale_remediation_usd = stale_would_have_served * 0.035
+        estimated_token_savings_usd = len(hits) * 0.0025
+        projected_gross_savings_usd = round(estimated_stale_remediation_usd + estimated_token_savings_usd, 4)
+        net_savings_usd = round(projected_gross_savings_usd - verification_cost_usd, 4)
+
+        if stale_would_have_served > 0:
+            recommendation = (
+                f"Shadow mode detected {stale_would_have_served} stale cached response(s) that would have been served to users without ChronoGuard. "
+                f"Active invalidation is projected to save ${net_savings_usd:.4f} USD net freshness value with {entries_at_risk} entries currently at risk. "
+                f"Recommendation: Enable active invalidation (standard policy)."
+            )
+        elif entries_at_risk > 0:
+            recommendation = (
+                f"{entries_at_risk} cache entry(ies) currently hold outdated claims. Although no user has hit them in this window, "
+                f"enabling active invalidation will prevent stale drift before hits occur."
+            )
+        else:
+            recommendation = (
+                f"All {len(cache_rows)} cache entries and observed requests are fresh. "
+                f"Recommendation: Continue shadow monitoring until volatility events trigger."
+            )
+
+        return {
+            "window": window,
+            "requests_observed": total_requests,
+            "hit_rate": round(hit_rate, 4),
+            "stale_would_have_served": stale_would_have_served,
+            "entries_at_risk": entries_at_risk,
+            "top_stale_facts": top_stale_facts,
+            "costs": {
+                "verification_cost_usd": verification_cost_usd,
+                "verification_cost_label": "LIVE",
+                "tavily_credits": live_tavily_credits,
+                "projected_savings_usd": projected_gross_savings_usd,
+                "projected_savings_label": "SIMULATED",
+                "net_projected_usd": net_savings_usd,
+                "net_projected_label": "SIMULATED",
+            },
+            "recommendation": recommendation,
+            "shadow_enabled": request.app.state.settings.shadow_enabled,
+        }
+
     @app.get("/api/v1/budget")
     async def budget(request: Request, session=Depends(require_session)):
         settings = request.app.state.settings
@@ -800,6 +922,10 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         if settings.bifrost_api_key.get_secret_value():
             headers["Authorization"] = "Bearer " + settings.bifrost_api_key.get_secret_value()
         headers["x-cg-policy"] = body.policy
+        shadow_header = request.headers.get("x-cg-shadow", "")
+        is_shadow = shadow_header in ("1", "true") or settings.shadow_enabled
+        if is_shadow:
+            headers["x-cg-shadow"] = "1"
         if body.cache:
             headers["x-bf-cache-key"] = "cg-console-" + tenant
         outgoing = {"model": body.model, "stream": False, "messages": [m.model_dump() for m in body.messages]}
@@ -812,16 +938,42 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             raise HTTPException(503, "bifrost_unavailable") from None
         cache_id = upstream.headers.get("x-bifrost-cache-id")
         cache_hit = upstream.headers.get("x-bifrost-cache-hit", "").lower() == "true"
+        req_id = upstream.headers.get("x-bifrost-request-id") or __import__("uuid").uuid4().hex
         if cache_hit and cache_id:
             raw = await request.app.state.redis.get(key(tenant, "manifest", cache_id))
             if raw:
-                annotation = request.app.state.verifier._manifest_annotation(json.loads(raw))
-                annotation.update(cache="hit", decision="serve")
+                m = json.loads(raw)
+                annotation = request.app.state.verifier._manifest_annotation(m)
+                shadow_decision = None
+                if is_shadow:
+                    if m.get("status") == "stale":
+                        shadow_decision = "evict_regen" if body.policy == "strict" else "evict_lazy"
+                    elif m.get("status") == "due":
+                        shadow_decision = "revalidate_blocking" if body.policy == "strict" else "serve_swr"
+                    else:
+                        shadow_decision = "serve"
+                    decision_applied = "passthrough"
+                    annotation.update(cache="hit", decision=decision_applied, decision_shadow=shadow_decision, shadow_mode=True)
+                else:
+                    decision_applied = "serve"
+                    annotation.update(cache="hit", decision=decision_applied)
+
+                await request.app.state.repo.record_hit(
+                    tenant=tenant,
+                    request_id=req_id,
+                    model_id=body.model,
+                    cache_id=cache_id,
+                    policy=body.policy,
+                    prompt_class=prompt_class(body.messages[-1].content).value,
+                    decision=decision_applied,
+                    decision_shadow=shadow_decision,
+                    shadow_reason="shadow_playground_evaluation" if is_shadow else None,
+                )
                 return {"text": text, "response_id": annotation.get("response_id"), "annotation": annotation, "cache_hit": True, "cache_id": cache_id, "headers": dict(upstream.headers), "trace_id": upstream.headers.get("x-bifrost-trace-id")}
         usage = data.get("usage") or {}
         ingest = Ingest(
             tenant_id=tenant,
-            request_id=upstream.headers.get("x-bifrost-request-id") or __import__("uuid").uuid4().hex,
+            request_id=req_id,
             cache_id=cache_id,
             origin="provider",
             model_id=body.model,
@@ -832,6 +984,8 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             prompt_class=prompt_class(body.messages[-1].content),
             policy=body.policy,
             deadline_ms=15000 if body.policy == "strict" else 30000,
+            decision_shadow="passthrough" if is_shadow else None,
+            shadow_reason="shadow_mode_evaluation" if is_shadow else None,
         )
         response_id, _ = await request.app.state.repo.ingest(
             ingest, settings.store_content, queue=body.policy != "strict"

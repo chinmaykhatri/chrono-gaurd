@@ -119,6 +119,14 @@ Freshness ≠ truth. `freshness_score` (is the claim current?) is kept separate 
 - **Two-key evidence rule** — require corroborating sources for invalidation
 - **No fabricated scores** — a Tavily outage ≠ a "fresh" verdict
 
+## Shadow Mode & ROI Analytics
+
+ChronoGuard supports non-intrusive **Shadow Mode** (`shadow.enabled: true` or per-request header `x-cg-shadow: 1`):
+- **Zero Gateway Modification:** Serves byte-identical responses from cache or provider while evaluating decisions in the background.
+- **Drift Detection:** Records `decision_shadow` (`evict_regen`, `serve`, `serve_swr`, `fail_closed`) with reasons.
+- **ROI Dashboard (`/roi`):** Monitors observed traffic, stale answers prevented, cache entries at risk, top stale facts, and verification costs (LIVE) vs projected freshness savings (SIMULATED).
+- **Export & Reporting:** Includes JSON export and copyable Markdown reports directly from the console.
+
 ## Project Structure
 
 ```

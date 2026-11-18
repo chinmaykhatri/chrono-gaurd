@@ -97,6 +97,12 @@ func (p *Plugin) HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.
 		}
 		s.Policy = decide.Default(policyName)
 
+		// Check shadow mode header or config
+		shadowHeader := req.CaseInsensitiveHeaderLookup("x-cg-shadow")
+		if shadowHeader == "1" || strings.EqualFold(shadowHeader, "true") || p.rt.Config.ShadowEnabled {
+			s.Shadow = true
+		}
+
 		// Internal requests from verifier's regeneration loop skip ChronoGuard.
 		internalKey := req.CaseInsensitiveHeaderLookup("x-cg-internal-key")
 		if internalKey != "" && runtime.Trusted(internalKey, p.rt.Key) {
@@ -229,6 +235,51 @@ func (p *Plugin) handleHit(ctx *schemas.BifrostContext, s *runtime.State, res *s
 
 	// Run pure-Go decision engine.
 	d := decide.Decide(m, s.Policy, now)
+
+	if s.Shadow {
+		s.ShadowDecision = string(d)
+		s.Decision = "passthrough"
+		s.ShadowReason = "shadow_mode_evaluation"
+		s.Annotation = manifestAnnotation(m, "shadow_passthrough")
+
+		if d == decide.SWR || d == decide.Regenerate || d == decide.EvictLazy || d == decide.Blocking {
+			go func() {
+				bgCtx, cancel := context.WithTimeout(context.Background(), time.Duration(s.Policy.RevalidateBudgetMS)*time.Millisecond)
+				defer cancel()
+				payload := map[string]any{
+					"tenant_id":   s.Tenant,
+					"cache_id":    cacheID,
+					"policy":      s.Policy.Name,
+					"deadline_ms": s.Policy.RevalidateBudgetMS,
+					"reason":      "shadow_revalidation",
+					"force":       false,
+				}
+				_ = p.rt.Verifier.Post(bgCtx, "/internal/v1/revalidate", payload, nil)
+			}()
+		}
+
+		go func() {
+			bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			hitPayload := map[string]any{
+				"tenant_id":       s.Tenant,
+				"request_id":      s.ID,
+				"cache_id":        cacheID,
+				"origin":          "legacy_cache",
+				"model_id":        s.Model,
+				"policy":          s.Policy.Name,
+				"prompt_class":    s.Class,
+				"cache_status":    "hit",
+				"decision":        "passthrough",
+				"decision_shadow": s.ShadowDecision,
+				"shadow_reason":   s.ShadowReason,
+			}
+			_ = p.rt.Verifier.Post(bgCtx, "/internal/v1/record-hit", hitPayload, nil)
+		}()
+
+		return res, nil, nil
+	}
+
 	s.Decision = string(d)
 
 	switch d {
@@ -367,6 +418,13 @@ func (p *Plugin) HTTPTransportResponseHeadersHook(ctx *schemas.BifrostContext, r
 
 	if s.Cache != "" {
 		resp.Headers["x-cg-cache-id"] = s.Cache
+	}
+
+	if s.Shadow {
+		resp.Headers["x-cg-shadow"] = "1"
+		if s.ShadowDecision != "" {
+			resp.Headers["x-cg-decision-shadow"] = s.ShadowDecision
+		}
 	}
 
 	return nil

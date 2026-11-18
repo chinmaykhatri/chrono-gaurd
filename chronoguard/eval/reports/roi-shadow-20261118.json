@@ -1,0 +1,29 @@
+{
+  "window": "24h",
+  "requests_observed": 0,
+  "hit_rate": 0.0,
+  "stale_would_have_served": 0,
+  "entries_at_risk": 5,
+  "top_stale_facts": [
+    {
+      "fact_id": "f688f36f-3cfc-4403-bcfd-9b3f8b1fa012",
+      "fact_key": "software_versions:node-js:other:lts-version",
+      "cached_value": "Node.js 22",
+      "current_value": "Node.js 22",
+      "last_verdict": "outdated",
+      "entries_affected": 12,
+      "hits": 11
+    }
+  ],
+  "costs": {
+    "verification_cost_usd": 0,
+    "verification_cost_label": "LIVE",
+    "tavily_credits": 0,
+    "projected_savings_usd": 0.0,
+    "projected_savings_label": "SIMULATED",
+    "net_projected_usd": 0.0,
+    "net_projected_label": "SIMULATED"
+  },
+  "recommendation": "5 cache entry(ies) currently hold outdated claims. Although no user has hit them in this window, enabling active invalidation will prevent stale drift before hits occur.",
+  "shadow_enabled": false
+}

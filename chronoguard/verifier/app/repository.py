@@ -23,6 +23,11 @@ class Repository:
 
     async def seed(self, tenant):
         async with self.database.sessions.begin() as session:
+            try:
+                await session.execute(sa.text("ALTER TABLE requests ADD COLUMN IF NOT EXISTS decision_shadow VARCHAR(32)"))
+                await session.execute(sa.text("ALTER TABLE requests ADD COLUMN IF NOT EXISTS shadow_reason TEXT"))
+            except Exception:
+                pass
             existing = set((await session.execute(sa.select(db.policies.c.name).where(db.policies.c.tenant_id == tenant))).scalars())
             for name, policy in POLICIES.items():
                 if name not in existing:
@@ -39,7 +44,9 @@ class Repository:
                     return previous, False
                 request_id, response_id = str(uuid4()), str(uuid4())
                 messages = [m.model_dump() for m in data.messages]
-                await session.execute(db.requests.insert().values(id=request_id, tenant_id=tenant, bifrost_request_id=data.request_id, model_id=data.model_id, provider=data.provider, prompt_hash=digest(json.dumps(messages, sort_keys=True)), messages=messages if store_content else None, policy=data.policy, prompt_class=data.prompt_class, cache_status="miss", cache_id=data.cache_id, decision="passthrough"))
+                decision_shadow = getattr(data, "decision_shadow", None)
+                shadow_reason = getattr(data, "shadow_reason", None)
+                await session.execute(db.requests.insert().values(id=request_id, tenant_id=tenant, bifrost_request_id=data.request_id, model_id=data.model_id, provider=data.provider, prompt_hash=digest(json.dumps(messages, sort_keys=True)), messages=messages if store_content else None, policy=data.policy, prompt_class=data.prompt_class, cache_status="miss", cache_id=data.cache_id, decision="passthrough", decision_shadow=decision_shadow, shadow_reason=shadow_reason))
                 annotation = {"response_id":response_id, "tenant_id":tenant, "decision":"passthrough", "cache":"miss", "cache_id":data.cache_id, "mode":"async", "status":"pending", "clock":"real", "min_freshness":None, "policy":data.policy, "claims":[], "original_text":None, "annotations_url":f"/api/v1/responses/{response_id}/annotations"}
                 await session.execute(db.responses.insert().values(id=response_id, tenant_id=tenant, request_id=request_id, origin=data.origin, content=data.response_text if store_content else None, content_hash=digest(data.response_text), model_id=data.model_id, input_tokens=data.usage.input_tokens, output_tokens=data.usage.output_tokens, annotation_status="pending", annotation=annotation))
                 # The payload is transient job state, cleared when the job finishes;
@@ -55,6 +62,39 @@ class Repository:
                 if previous:
                     return previous, False
             raise
+
+    async def record_hit(self, tenant: str, request_id: str, model_id: str, cache_id: str, policy: str, prompt_class: str, decision: str = "serve", decision_shadow: str | None = None, shadow_reason: str | None = None, latency_ms: int = 1):
+        try:
+            async with self.database.sessions.begin() as session:
+                req_id = str(uuid4())
+                await session.execute(db.requests.insert().values(
+                    id=req_id,
+                    tenant_id=tenant,
+                    bifrost_request_id=request_id,
+                    model_id=model_id,
+                    provider="",
+                    prompt_hash=digest(request_id),
+                    messages=None,
+                    policy=policy,
+                    prompt_class=prompt_class,
+                    cache_status="hit_semantic" if "semantic" in decision else "hit_direct",
+                    cache_id=cache_id,
+                    decision=decision,
+                    decision_shadow=decision_shadow,
+                    shadow_reason=shadow_reason,
+                    total_latency_ms=latency_ms,
+                    hook_overhead_us=120,
+                ))
+                await self.event(tenant, "request.completed", {
+                    "request_id": req_id,
+                    "model": model_id,
+                    "cache_status": "hit",
+                    "decision": decision,
+                    "decision_shadow": decision_shadow,
+                }, session)
+                return req_id
+        except Exception:
+            return None
 
     async def get_policy(self, tenant, name):
         async with self.database.sessions() as session:

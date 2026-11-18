@@ -23,6 +23,7 @@ requests = sa.Table("requests", metadata, *base_columns(),
     sa.Column("policy", sa.String(32), nullable=False), sa.Column("prompt_class", sa.String(32)),
     sa.Column("cache_status", sa.String(32), nullable=False), sa.Column("cache_id", sa.String(256)),
     sa.Column("decision", sa.String(32), nullable=False), sa.Column("decision_detail", json_type, nullable=False, default=dict),
+    sa.Column("decision_shadow", sa.String(32)), sa.Column("shadow_reason", sa.Text),
     sa.Column("total_latency_ms", sa.Integer), sa.Column("hook_overhead_us", sa.Integer),
     sa.UniqueConstraint("tenant_id", "bifrost_request_id"), sa.Index("ix_requests_time", "tenant_id", "created_at"))
 responses = sa.Table("responses", metadata, *base_columns(),
