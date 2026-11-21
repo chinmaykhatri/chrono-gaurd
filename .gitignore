@@ -42,8 +42,6 @@ Desktop.ini
 # Temporary & evaluations local caches
 .upstream/
 chronoguard/eval/reports/local/
-scratch/
+*.db
 .hallmark/
 .freebuff/
-.cloud-attachments/
-graphify-out/
