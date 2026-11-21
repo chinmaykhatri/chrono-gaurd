@@ -1,5 +1,5 @@
 {
-  "provenance": "LIVE",
+  "provenance": "classifier_fixture",
   "timestamp": "2026-11-18T19:38:06Z",
   "total_pairs": 60,
   "near_miss_count": 30,
