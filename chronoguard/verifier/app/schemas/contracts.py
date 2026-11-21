@@ -22,7 +22,7 @@ class Category(StrEnum):
 
 
 class Message(Contract):
-    role: Literal["system", "user", "assistant"]
+    role: Literal["system", "developer", "user", "assistant"]
     content: str = Field(max_length=12000)
 
 
@@ -51,6 +51,7 @@ class Ingest(Contract):
     guard_reason: str | None = None
     now: datetime | None = None
     deadline_ms: int = Field(4500, ge=100, le=30000)
+    chat: dict | None = None
 
     @field_validator("tenant_id", mode="before")
     @classmethod
@@ -135,9 +136,10 @@ class Revalidate(Contract):
     tenant_id: str = Field("default", min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_:-]+$")
     cache_id: str = Field(min_length=1, max_length=256)
     policy: Literal["strict", "standard", "lenient"] = "standard"
-    deadline_ms: int = Field(3000, ge=100, le=30000)
-    reason: Literal["due", "stale", "unverified", "manual", "swr", "blocking_revalidation", "evict_regen", "lazy_eviction", "shadow_revalidation"] = "due"
+    deadline_ms: int = Field(3000, ge=100, le=60000)
+    reason: Literal["due", "stale", "unverified", "manual", "swr", "blocking_revalidation", "evict_regen", "lazy_eviction", "guard_bypass"] = "due"
     force: bool = False
+    chat: dict | None = None
 
 
 class RecordHit(Contract):
