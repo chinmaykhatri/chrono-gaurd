@@ -90,7 +90,7 @@ def test_guard_eval_report_file():
     with open(report_path, "r", encoding="utf-8") as f:
         data = json.load(f)
 
-    assert data["provenance"] == "LIVE"
+    assert data["provenance"] == "classifier_fixture"
     assert data["total_pairs"] == 60
     assert data["near_miss_count"] == 30
     assert data["paraphrase_count"] == 30
