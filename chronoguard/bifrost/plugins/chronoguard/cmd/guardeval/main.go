@@ -27,36 +27,36 @@ type GuardDataset struct {
 }
 
 type PairResult struct {
-	ID             string  `json:"id"`
-	Incoming       string  `json:"incoming"`
-	Cached         string  `json:"cached"`
-	ExpectedTrip   bool    `json:"expected_trip"`
-	PredictedTrip  bool    `json:"predicted_trip"`
-	ExpectedReason string  `json:"expected_reason"`
-	PredictedReason string `json:"predicted_reason"`
-	Correct        bool    `json:"correct"`
-	LatencyUs      float64 `json:"latency_us"`
+	ID              string  `json:"id"`
+	Incoming        string  `json:"incoming"`
+	Cached          string  `json:"cached"`
+	ExpectedTrip    bool    `json:"expected_trip"`
+	PredictedTrip   bool    `json:"predicted_trip"`
+	ExpectedReason  string  `json:"expected_reason"`
+	PredictedReason string  `json:"predicted_reason"`
+	Correct         bool    `json:"correct"`
+	LatencyUs       float64 `json:"latency_us"`
 }
 
 type GuardReport struct {
-	Provenance        string       `json:"provenance"`
-	Timestamp         string       `json:"timestamp"`
-	TotalPairs        int          `json:"total_pairs"`
-	NearMissCount     int          `json:"near_miss_count"`
-	ParaphraseCount   int          `json:"paraphrase_count"`
-	TruePositives     int          `json:"tp"`
-	FalsePositives    int          `json:"fp"`
-	FalseNegatives    int          `json:"fn"`
-	TrueNegatives     int          `json:"tn"`
-	Precision         float64      `json:"precision"`
-	Recall            float64      `json:"recall"`
-	F1                float64      `json:"f1"`
-	Accuracy          float64      `json:"accuracy"`
-	AvgExtractionUs   float64      `json:"avg_extraction_us"`
-	AvgCheckUs        float64      `json:"avg_check_us"`
-	AvgOverheadUs     float64      `json:"avg_total_overhead_us"`
-	BudgetCompliant   bool         `json:"budget_compliant_under_100us"`
-	Results           []PairResult `json:"results"`
+	Provenance      string       `json:"provenance"`
+	Timestamp       string       `json:"timestamp"`
+	TotalPairs      int          `json:"total_pairs"`
+	NearMissCount   int          `json:"near_miss_count"`
+	ParaphraseCount int          `json:"paraphrase_count"`
+	TruePositives   int          `json:"tp"`
+	FalsePositives  int          `json:"fp"`
+	FalseNegatives  int          `json:"fn"`
+	TrueNegatives   int          `json:"tn"`
+	Precision       float64      `json:"precision"`
+	Recall          float64      `json:"recall"`
+	F1              float64      `json:"f1"`
+	Accuracy        float64      `json:"accuracy"`
+	AvgExtractionUs float64      `json:"avg_extraction_us"`
+	AvgCheckUs      float64      `json:"avg_check_us"`
+	AvgOverheadUs   float64      `json:"avg_total_overhead_us"`
+	BudgetCompliant bool         `json:"budget_compliant_under_100us"`
+	Results         []PairResult `json:"results"`
 }
 
 func main() {
@@ -151,24 +151,24 @@ func main() {
 	avgTotalUs := (float64((totalExtractDuration + totalCheckDuration).Nanoseconds()) / 1000.0) / float64(len(ds.Pairs))
 
 	report := GuardReport{
-		Provenance:        "LIVE",
-		Timestamp:         time.Now().UTC().Format(time.RFC3339),
-		TotalPairs:        len(ds.Pairs),
-		NearMissCount:     nearMisses,
-		ParaphraseCount:   paraphrases,
-		TruePositives:     tp,
-		FalsePositives:    fp,
-		FalseNegatives:    fn,
-		TrueNegatives:     tn,
-		Precision:         round4(precision),
-		Recall:            round4(recall),
-		F1:                round4(f1),
-		Accuracy:          round4(accuracy),
-		AvgExtractionUs:   round2(avgExtractUs),
-		AvgCheckUs:        round2(avgCheckUs),
-		AvgOverheadUs:     round2(avgTotalUs),
-		BudgetCompliant:   avgTotalUs < 100.0,
-		Results:           results,
+		Provenance:      "classifier_fixture",
+		Timestamp:       time.Now().UTC().Format(time.RFC3339),
+		TotalPairs:      len(ds.Pairs),
+		NearMissCount:   nearMisses,
+		ParaphraseCount: paraphrases,
+		TruePositives:   tp,
+		FalsePositives:  fp,
+		FalseNegatives:  fn,
+		TrueNegatives:   tn,
+		Precision:       round4(precision),
+		Recall:          round4(recall),
+		F1:              round4(f1),
+		Accuracy:        round4(accuracy),
+		AvgExtractionUs: round2(avgExtractUs),
+		AvgCheckUs:      round2(avgCheckUs),
+		AvgOverheadUs:   round2(avgTotalUs),
+		BudgetCompliant: avgTotalUs < 100.0,
+		Results:         results,
 	}
 
 	outJson, _ := json.MarshalIndent(report, "", "  ")
@@ -181,7 +181,7 @@ func main() {
 	fmt.Printf("Guard Eval Complete:\n")
 	fmt.Printf("  Total Pairs: %d (Near-miss: %d, Paraphrase: %d)\n", len(ds.Pairs), nearMisses, paraphrases)
 	fmt.Printf("  Accuracy: %.2f%%  Precision: %.4f  Recall: %.4f  F1: %.4f\n", accuracy*100, precision, recall, f1)
-	fmt.Printf("  Avg Extraction Latency: %.2f us  Avg Check Latency: %.2f us  Avg Total Overhead: %.2f us [LIVE]\n", avgExtractUs, avgCheckUs, avgTotalUs)
+	fmt.Printf("  Avg Extraction Latency: %.2f us  Avg Check Latency: %.2f us  Avg Total Overhead: %.2f us [classifier fixture]\n", avgExtractUs, avgCheckUs, avgTotalUs)
 	fmt.Printf("  Budget Compliant (<100us): %v\n", avgTotalUs < 100.0)
 	fmt.Printf("  Report written to: %s\n", *outPath)
 }
