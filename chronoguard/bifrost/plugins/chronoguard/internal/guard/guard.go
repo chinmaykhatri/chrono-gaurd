@@ -1,20 +1,23 @@
 package guard
 
 import (
+	"encoding/json"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // Signature represents the extracted syntactic and entity fingerprint of a query.
 type Signature struct {
-	Numbers   []string `json:"numbers"`   // Extracted digits, floats, versions
-	Years     []string `json:"years"`     // 4-digit years (1900-2099)
-	Entities  []string `json:"entities"`  // Capitalized terms, quoted entities
-	Polarity  []string `json:"polarity"`  // Temporal and negation tokens
-	Relations []string `json:"relations"` // Key relation roles (ceo, founder, capital, etc.)
+	Numbers     []string `json:"numbers"`   // Extracted digits, floats, versions
+	Years       []string `json:"years"`     // 4-digit years (1900-2099)
+	Entities    []string `json:"entities"`  // Capitalized terms, quoted entities
+	Polarity    []string `json:"polarity"`  // Temporal and negation tokens
+	Relations   []string `json:"relations"` // Key relation roles (ceo, founder, capital, etc.)
+	EntityOrder []string `json:"entity_order"`
 }
 
 var (
@@ -22,7 +25,8 @@ var (
 	numberRegex = regexp.MustCompile(`(?i)\b(v?\d+(?:\.\d+)+|\d{4}|\d+)\b`)
 
 	// Quoted strings regex
-	quotedRegex = regexp.MustCompile(`["']([^"']+)["']`)
+	quotedRegex   = regexp.MustCompile(`["']([^"']+)["']`)
+	capitalTarget = regexp.MustCompile(`(?i)\bcapital\s+of\s+(?:the\s+)?([\pL][\pL\s'-]*?)[?.!]*$`)
 
 	// Stop words to exclude from entity candidate extraction (lowercased)
 	commonQuestionWords = map[string]bool{
@@ -109,6 +113,15 @@ func Extract(prompt string) Signature {
 
 	// 2. Extract quoted terms as entities
 	entitySet := make(map[string]bool)
+	addNamedEntity := func(words []string) {
+		entity := cleanEntity(strings.Join(words, " "))
+		if entity != "" && !entitySet[entity] {
+			sig.EntityOrder = append(sig.EntityOrder, entity)
+		}
+		if entity != "" {
+			entitySet[entity] = true
+		}
+	}
 	quotes := quotedRegex.FindAllStringSubmatch(trimmed, -1)
 	for _, match := range quotes {
 		if len(match) > 1 {
@@ -137,25 +150,25 @@ func Extract(prompt string) Signature {
 		}
 
 		// Check entity candidate (capitalized word that isn't just a sentence starter, relation, or polarity token)
-		isCapitalized := len(token) > 0 && unicode.IsUpper(rune(token[0]))
+		first, _ := utf8.DecodeRuneInString(token)
+		isCapitalized := unicode.IsUpper(first)
 		isSentenceStarter := (i == 0) && commonQuestionWords[lower]
 
 		if isCapitalized && !isSentenceStarter && !commonQuestionWords[lower] && !relationWords[lower] && !polarityWords[lower] {
 			currentEntityTokens = append(currentEntityTokens, token)
 		} else {
 			if len(currentEntityTokens) > 0 {
-				ent := cleanEntity(strings.Join(currentEntityTokens, " "))
-				if ent != "" && !commonQuestionWords[strings.ToLower(ent)] {
-					entitySet[ent] = true
-				}
+				addNamedEntity(currentEntityTokens)
 				currentEntityTokens = nil
 			}
 		}
 	}
 	if len(currentEntityTokens) > 0 {
-		ent := cleanEntity(strings.Join(currentEntityTokens, " "))
-		if ent != "" && !commonQuestionWords[strings.ToLower(ent)] {
-			entitySet[ent] = true
+		addNamedEntity(currentEntityTokens)
+	}
+	if len(entitySet) == 0 {
+		if target := capitalTarget.FindStringSubmatch(trimmed); len(target) == 2 {
+			addNamedEntity([]string{strings.TrimSpace(target[1])})
 		}
 	}
 
@@ -166,6 +179,9 @@ func Extract(prompt string) Signature {
 	}
 	sort.Strings(sig.Entities)
 	sig.Polarity = deduplicateAndSort(sig.Polarity)
+	if simpleDistance(trimmed, sig.EntityOrder) {
+		sig.Relations = append(sig.Relations, "undirected_distance")
+	}
 	sig.Relations = deduplicateAndSort(sig.Relations)
 
 	return sig
@@ -173,23 +189,14 @@ func Extract(prompt string) Signature {
 
 // Encode produces a compact canonical string for storage and logging.
 func (s Signature) Encode() string {
-	parts := make([]string, 0, 5)
-	if len(s.Years) > 0 {
-		parts = append(parts, "yr:"+strings.Join(s.Years, ","))
-	}
-	if len(s.Numbers) > 0 {
-		parts = append(parts, "num:"+strings.Join(s.Numbers, ","))
-	}
-	if len(s.Entities) > 0 {
-		parts = append(parts, "ent:"+strings.Join(s.Entities, ","))
-	}
-	if len(s.Polarity) > 0 {
-		parts = append(parts, "pol:"+strings.Join(s.Polarity, ","))
-	}
-	if len(s.Relations) > 0 {
-		parts = append(parts, "rel:"+strings.Join(s.Relations, ","))
-	}
-	return strings.Join(parts, "|")
+	data, _ := json.Marshal(s)
+	return string(data)
+}
+
+func Decode(encoded string) (Signature, bool) {
+	var signature Signature
+	err := json.Unmarshal([]byte(encoded), &signature)
+	return signature, err == nil && strings.HasPrefix(encoded, "{")
 }
 
 // Check compares an incoming query signature with a cached entry signature.
@@ -250,6 +257,18 @@ func Check(incoming, cached Signature) (bool, string) {
 			return true, "entity_mismatch"
 		}
 	}
+	inDistance := contains(incoming.Relations, "undirected_distance")
+	if inDistance != contains(cached.Relations, "undirected_distance") {
+		return true, "relation_mismatch"
+	}
+	if !inDistance && len(incoming.EntityOrder) > 1 && equalSets(incoming.Entities, cached.Entities) &&
+		len(incoming.EntityOrder) == len(cached.EntityOrder) {
+		for i, entity := range incoming.EntityOrder {
+			if entity != cached.EntityOrder[i] {
+				return true, "entity_role_mismatch"
+			}
+		}
+	}
 
 	// 5. Relation Mismatch (e.g., ceo vs founder, capital vs largest city)
 	if len(incoming.Relations) > 0 && len(cached.Relations) > 0 {
@@ -269,6 +288,25 @@ func Check(incoming, cached Signature) (bool, string) {
 }
 
 // Helpers
+
+// Only an unqualified distance between two named endpoints is symmetric.
+// Travel, timing and other qualifiers retain the normal role checks.
+func simpleDistance(prompt string, endpoints []string) bool {
+	if len(endpoints) != 2 {
+		return false
+	}
+	query := strings.Join(strings.Fields(strings.ToLower(strings.TrimRight(prompt, "?!."))), " ")
+	for _, form := range []struct{ prefix, separator string }{
+		{"what is the distance between ", " and "}, {"how far is ", " from "},
+	} {
+		if rest, ok := strings.CutPrefix(query, form.prefix); ok {
+			start, end, found := strings.Cut(rest, form.separator)
+			return found && strings.EqualFold(strings.TrimPrefix(start, "the "), endpoints[0]) &&
+				strings.EqualFold(strings.TrimPrefix(end, "the "), endpoints[1])
+		}
+	}
+	return false
+}
 
 func tokenize(s string) []string {
 	var tokens []string
