@@ -1,126 +1,40 @@
 :root {
-  color-scheme: dark;
-
-  /* Spacing Scale */
-  --space-3xs: 2px;
-  --space-2xs: 4px;
-  --space-xs: 8px;
-  --space-sm: 12px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --space-xl: 40px;
-  --space-2xl: 64px;
-  --space-3xl: 96px;
-  --space-4xl: 144px;
-
-  /* Typography Scale */
-  --text-xs: 0.75rem;
-  --text-sm: 0.84rem;
-  --text-md: 0.9375rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.35rem;
-  --text-2xl: 1.6875rem;
-  --text-3xl: 2.15rem;
-
-  --text-display-s: 1.44rem;
-  --text-display: 1.85rem;
-  --text-section: 1.15rem;
-  --text-title: 0.975rem;
-  --text-lead: 0.95rem;
-
-  /* Motion & Easing Curves */
-  --ease-spring: cubic-bezier(0.175, 0.885, 0.32, 1.15);
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --dur-micro: 140ms;
-  --dur-short: 240ms;
-  --dur-medium: 380ms;
-  --dur-long: 520ms;
-
-  /* Premium Obsidian & Glass Surface Foundation */
-  --color-paper: #080b11;
-  --color-paper-2: rgba(15, 23, 42, 0.72);
-  --color-paper-3: #04060a;
-  --color-glass: rgba(18, 26, 42, 0.65);
-  --color-glass-card: rgba(16, 24, 39, 0.78);
-  --color-glass-hover: rgba(30, 41, 62, 0.85);
-
-  /* Contrast-Tuned Ink Levels */
-  --color-ink: #f8fafc;
-  --color-ink-2: #cbd5e1;
-  --color-muted: #94a3b8;
-  --color-muted-2: #64748b;
-
-  /* Glass Hairlines & Borders */
-  --color-rule: rgba(255, 255, 255, 0.08);
-  --color-rule-2: rgba(255, 255, 255, 0.04);
-  --color-rule-glow: rgba(245, 158, 11, 0.35);
-
-  /* Primary Brand: Radiant Chronometric Amber / Gold */
-  --color-accent: #f59e0b;
-  --color-accent-ink: #080c14;
-  --color-accent-hover: #fbbf24;
-  --color-accent-glow: rgba(245, 158, 11, 0.3);
-
-  /* Secondary: Electric Bifrost Cyan / Azure */
-  --color-accent-2: #06b6d4;
-  --color-accent-2-glow: rgba(6, 182, 212, 0.3);
-
-  /* Semantic State Vocabulary */
-  --color-success: #10b981;
-  --color-success-glass: rgba(16, 185, 129, 0.12);
-  --color-success-border: rgba(16, 185, 129, 0.35);
-
-  --color-warning: #f59e0b;
-  --color-warning-glass: rgba(245, 158, 11, 0.12);
-  --color-warning-border: rgba(245, 158, 11, 0.35);
-
-  --color-error: #f43f5e;
-  --color-error-glass: rgba(244, 63, 94, 0.12);
-  --color-error-border: rgba(244, 63, 94, 0.35);
-
-  --color-info: #38bdf8;
-  --color-focus: #38bdf8;
-
-  /* Typography Stacks */
-  --font-display: "Switzer", "Inter var", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  --font-body: var(--font-display);
-  --font-outlier: "Geist Mono", "JetBrains Mono", ui-monospace, "SF Mono", monospace;
-
-  /* High-Spec Curvature Scale */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-card: 14px;
-  --radius-pill: 9999px;
-  --rule-hair: 1px;
-
-  /* Tactile 3D Shadows & Glass Elevation */
-  --shadow-glass: 0 12px 36px 0 rgba(0, 0, 0, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
-  --shadow-card: 0 10px 30px -8px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.1);
-  --shadow-card-hover: 0 18px 45px -10px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(245, 158, 11, 0.3), 0 0 24px rgba(245, 158, 11, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-
-  --shadow-3d-btn: 0 3px 8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 -2px 0 rgba(0, 0, 0, 0.35);
-  --shadow-3d-btn-hover: 0 6px 18px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.25), inset 0 -2px 0 rgba(0, 0, 0, 0.28);
-  --shadow-3d-btn-active: 0 1px 2px rgba(0, 0, 0, 0.6), inset 0 2px 4px rgba(0, 0, 0, 0.5);
-
-  --shadow-primary-btn: 0 4px 18px rgba(245, 158, 11, 0.38), inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -2px 0 rgba(0, 0, 0, 0.25);
-  --shadow-primary-btn-hover: 0 8px 28px rgba(245, 158, 11, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.6), inset 0 -2px 0 rgba(0, 0, 0, 0.2);
-  --shadow-primary-btn-active: 0 1px 3px rgba(0, 0, 0, 0.7), inset 0 2px 5px rgba(0, 0, 0, 0.45);
-
-  /* Layout Constants */
-  --container: 1440px;
-  --gutter: 48px;
-  --gap-columns: 28px;
-  --tracking-display: -0.035em;
-  --display-weight: 600;
-
-  --z-base: 1;
-  --z-raised: 10;
-  --z-dropdown: 100;
-  --z-sticky: 200;
-  --z-sticky-nav: 300;
-  --z-modal: 400;
-  --z-toast: 500;
-  --z-tooltip: 600;
+  color-scheme: light;
+  --paper: #f8f7f0;
+  --surface: #fffef8;
+  --surface-soft: #f0f1e8;
+  --sage: #dce7d7;
+  --sage-light: #ebf1e6;
+  --pine: #174b3f;
+  --pine-deep: #123a31;
+  --ink: #202d26;
+  --ink-soft: #394b40;
+  --muted: #56665a;
+  --line: #d2d9cb;
+  --line-dark: #b8c4b5;
+  --brass: #997445;
+  --amber: #80591f;
+  --amber-wash: #f7edd2;
+  --rust: #943e31;
+  --rust-wash: #f9e9df;
+  --blue: #365c67;
+  --blue-wash: #e6eef0;
+  --white: #fffef8;
+  --ring: #276b64;
+  --serif: 'Instrument Serif', Georgia, 'Times New Roman', serif;
+  --sans: 'DM Sans Variable', 'Segoe UI', sans-serif;
+  --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --ease: cubic-bezier(.2,.72,.22,1);
+  --color-accent: var(--pine);
+  --color-accent-2: var(--blue);
+  --color-success: var(--pine);
+  --color-error: var(--rust);
+  --color-warning: var(--amber);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted);
+  --border: var(--line);
+  --color-border: var(--line);
+  --card-bg: var(--surface);
+  --color-surface-2: var(--surface-soft);
+  --gutter: clamp(22px, 3.4vw, 62px);
 }
