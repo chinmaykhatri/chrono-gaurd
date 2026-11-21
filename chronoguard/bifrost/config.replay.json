@@ -1,0 +1,24 @@
+{
+  "config_store": {"enabled": false},
+  "logs_store": {"enabled": false},
+  "providers": {
+    "openai": {
+      "network_config": {"base_url": "http://replay:8099", "allow_private_network": true, "max_retries": 0},
+      "keys": [{"name": "replay", "value": "env.OPENAI_API_KEY", "models": ["gpt-4o-mini", "text-embedding-3-small"], "weight": 1}]
+    }
+  },
+  "vector_store": {
+    "enabled": true,
+    "type": "weaviate",
+    "config": {"scheme": "http", "host": "weaviate:8080"}
+  },
+  "plugins": [
+    {"name": "cg-front", "enabled": true, "config": {"enabled": true}},
+    {"name": "semantic_cache", "enabled": true, "config": {
+      "provider": "openai", "embedding_model": "text-embedding-3-small",
+      "dimension": 1536, "threshold": 0.88, "ttl": 2592000,
+      "vector_store_namespace": "ChronoGuardReplay"
+    }},
+    {"name": "cg-back", "enabled": false}
+  ]
+}
