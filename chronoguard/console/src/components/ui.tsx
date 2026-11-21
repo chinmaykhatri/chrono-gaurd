@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { Fragment, ReactNode, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   asRecord,
@@ -454,8 +454,8 @@ export function DataTable({
               {filtered.map((row, index) => {
                 const id = String(row.id ?? row.claim_id ?? row.fact_key ?? index);
                 return (
-                  <>
-                    <tr key={id} className={open === id ? 'open' : undefined}>
+                  <Fragment key={id}>
+                    <tr className={open === id ? 'open' : undefined}>
                       {columns.map((column) => (
                         <td key={column.key} className={column.align === 'right' ? 'right num' : undefined}>
                           {column.render ? column.render(row) : display(row[column.key]).replaceAll('_', ' ')}
@@ -478,7 +478,7 @@ export function DataTable({
                         <td colSpan={columns.length + 1}>{expanded(row)}</td>
                       </tr>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </tbody>
@@ -807,19 +807,19 @@ export function ProbeWidget() {
     <div className="probe-widget">
       <div className="split-line">
         <div>
-          <h3>System Invalidation Probe</h3>
+          <h3>Redis cascade probe</h3>
           <p className="page-note">
-            Automated hardware test verifying Redis reverse indexing (<code>SADD</code>) and sub-20ms cascade invalidation without mocking.
+            Writes an isolated synthetic claim and checks that the reverse index marks its Redis manifest stale.
           </p>
         </div>
         <div className="probe-actions">
           {result && (
             <span className={`probe-status-tag status-${result.status === 'verified' ? 'good' : 'bad'}`}>
-              {result.status === 'verified' ? '✓ VERIFIED HEALTHY' : '✕ PROBE FAILED'} ({String(result.probe_latency_ms)} ms)
+              {result.status === 'verified' ? 'Cascade verified' : 'Probe failed'} ({String(result.probe_latency_ms)} ms)
             </span>
           )}
-          <button className="button primary" disabled={running} onClick={runProbe}>
-            {running ? 'Running Probe…' : '⚡ Run Invalidation Probe'}
+          <button disabled={running} onClick={runProbe}>
+            {running ? 'Running probe…' : 'Run invalidation probe'}
           </button>
         </div>
       </div>
