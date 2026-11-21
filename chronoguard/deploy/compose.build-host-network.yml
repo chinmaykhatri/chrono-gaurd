@@ -1,0 +1,5 @@
+services:
+  bifrost:
+    build:
+      network: host
+      entitlements: [network.host]
