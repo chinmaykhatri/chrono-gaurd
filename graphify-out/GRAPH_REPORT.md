@@ -1,17 +1,17 @@
 # Graph Report - Chrono-gaurd  (2026-11-21)
 
 ## Corpus Check
-- 144 files · ~99,209 words
+- 150 files · ~102,033 words
 - Verdict: corpus is large enough that graph structure adds value.
-- Unclassified: 48 file(s) not represented in the graph (top: (none) 40, .lock 2, .css 2)
+- Unclassified: 49 file(s) not represented in the graph (top: (none) 40, .lock 2, .css 2)
 
 ## Summary
-- 1437 nodes · 3231 edges · 112 communities (78 shown, 34 thin omitted)
+- 1492 nodes · 3298 edges · 115 communities (77 shown, 38 thin omitted)
 - Extraction: 95% EXTRACTED · 5% INFERRED · 0% AMBIGUOUS · INFERRED: 156 edges (avg confidence: 0.91)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `7fa4ef74`
+- Built from commit: `e2db3483`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -53,7 +53,7 @@
 - depends_on
 - postgres
 - steps
-- os
+- config
 - services
 - news_events
 - org_people
@@ -65,13 +65,13 @@
 - classes
 - redis
 - ChronoGuard architecture
-- Settings
+- lifespan
 - Security decisions and review scope
 - llm
 - telemetry
 - realtime
 - datetime
-- clients.py
+- Ingest
 - weights
 - 00-cover-and-conventions.md
 - 01-product-requirements-document.md
@@ -88,8 +88,8 @@
 - Clock
 - simulate_scheduler.py
 - privacy
-- standard
-- strict
+- ChronoGuard
+- generate_deck.py
 - environment
 - dependencies
 - scheduler
@@ -108,8 +108,11 @@
 - reissue
 - detail_endpoint
 - health_state
-- degrade
+- MockLLMHandler
+- asyncio
 - stream
+- SecurityHeaders
+- clock
 
 ## God Nodes (most connected - your core abstractions)
 1. `create_app()` - 85 edges
@@ -117,7 +120,7 @@
 3. `Verifier` - 42 edges
 4. `key()` - 41 edges
 5. `Category` - 40 edges
-6. `digest()` - 36 edges
+6. `digest()` - 37 edges
 7. `Claim` - 34 edges
 8. `display()` - 29 edges
 9. `App()` - 28 edges
@@ -138,7 +141,7 @@
 ## Import Cycles
 - None detected.
 
-## Communities (112 total, 34 thin omitted)
+## Communities (115 total, 38 thin omitted)
 
 ### Community 0 - "ui.tsx"
 Cohesion: 0.08
@@ -146,11 +149,11 @@ Nodes (99): api(), ApiError, asRecord(), asRows(), csvCell(), display(), downloa
 
 ### Community 1 - "verify.py"
 Cohesion: 0.06
-Nodes (61): clean_text(), cache_evict(), system_probe(), fact_key(), skip_reason(), slug(), default_lambda_for_class(), estimate_lambda() (+53 more)
+Nodes (60): cache_evict(), system_probe(), fact_key(), skip_reason(), slug(), default_lambda_for_class(), estimate_lambda(), freshness_metric() (+52 more)
 
 ### Community 2 - "create_app"
 Cohesion: 0.08
-Nodes (7): create_app(), auth_login(), auth_logout(), budget(), playground_chat(), record_hit_endpoint(), update_policy()
+Nodes (10): create_app(), auth_login(), auth_logout(), auth_session(), budget(), claim_review(), playground_chat(), record_hit_endpoint() (+2 more)
 
 ### Community 3 - "ChronoGuard — Claude Code Project Instructions"
 Cohesion: 0.05
@@ -177,16 +180,16 @@ Cohesion: 0.08
 Nodes (29): POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_USER, REDIS_PASSWORD, REDISCLI_AUTH, interval, retries, test (+21 more)
 
 ### Community 9 - "test_pipeline.py"
-Cohesion: 0.21
-Nodes (17): call(), test_judge_model_down_empirical_behavior(), test_policy_unverifiable_mappings(), test_tavily_down_empirical_behavior(), body(), call(), FakeModels, FakeTavily (+9 more)
+Cohesion: 0.09
+Nodes (25): DependencyUnavailable, ModelClient, strict_schema(), walk(), call(), FailingJudgeModels, FailingTavily, test_judge_model_down_empirical_behavior() (+17 more)
 
 ### Community 10 - "main.py"
-Cohesion: 0.09
-Nodes (17): ClockAction, DryRun, Login, Pin, PlaygroundChat, SecurityHeaders, Contract, Extraction (+9 more)
+Cohesion: 0.12
+Nodes (11): ClockAction, DryRun, Login, Pin, PlaygroundChat, Contract, Message, Revalidate (+3 more)
 
 ### Community 11 - "security.py"
-Cohesion: 0.22
-Nodes (5): login(), require_internal(), require_session(), safe_public_url(), Task 2: Verifier API Contracts & Endpoints (`/internal/v1/record-hit` & `/api/v1/roi`)
+Cohesion: 0.18
+Nodes (6): clean_text(), Extraction, redact_query(), require_internal(), require_session(), safe_public_url()
 
 ### Community 12 - "testing.T"
 Cohesion: 0.15
@@ -200,10 +203,6 @@ Nodes (12): New(), New(), Manifest, Key(), Get(), Runtime, New(), Client (+4 mor
 Cohesion: 0.14
 Nodes (19): canonicalRelation(), Check(), cleanEntity(), contains(), containsAny(), Decode(), deduplicateAndSort(), equalSets() (+11 more)
 
-### Community 15 - "Repository"
-Cohesion: 0.08
-Nodes (8): Repository, FakeBuckets, FakeClock, setup_verifier(), Feature A: Shadow Mode and ROI Report Implementation Plan, Task 1: Database Migration & Configuration Flag, Task 4: Console `/roi` Page & Navigation, Task 5: Automated Testing & Evaluation Report
-
 ### Community 16 - "environment"
 Cohesion: 0.17
 Nodes (31): environment, CG_ADMIN_PASSWORD_HASH, CG_ALLOW_SIMULATED_CLOCK, CG_BIFROST_URL, CG_CONSOLE_ORIGIN, CG_DATABASE_URL, CG_DEFAULT_POLICY, CG_DELTA_ENABLED (+23 more)
@@ -213,8 +212,8 @@ Cohesion: 0.20
 Nodes (6): Plugin, extractMessages(), lastUserMessage(), TestClassifyFromLastUserMessage(), TestExtractMessages(), Tenant()
 
 ### Community 18 - "pathlib"
-Cohesion: 0.20
-Nodes (4): main(), main(), main(), main()
+Cohesion: 0.24
+Nodes (3): main(), main(), main()
 
 ### Community 19 - "feature_weights"
 Cohesion: 0.25
@@ -229,40 +228,40 @@ Cohesion: 0.14
 Nodes (13): compilerOptions, esModuleInterop, isolatedModules, jsx, lib, module, moduleResolution, noEmit (+5 more)
 
 ### Community 22 - "chronoguard"
-Cohesion: 0.12
-Nodes (15): chronoguard, clock, delta, enabled, guard, kill_switch, plugin_order, policies (+7 more)
+Cohesion: 0.13
+Nodes (14): chronoguard, degrade, delta, enabled, guard, kill_switch, plugin_order, shadow (+6 more)
 
 ### Community 23 - "db.py"
-Cohesion: 0.17
-Nodes (6): base_columns(), now(), claim_review(), online(), run(), upgrade()
+Cohesion: 0.19
+Nodes (5): base_columns(), now(), online(), run(), upgrade()
 
 ### Community 24 - "lenient"
-Cohesion: 0.17
-Nodes (12): blocking_budget_ms, evict_below, max_claims_per_response, max_credits_per_response, mode, on_unverifiable, regen_budget_ms, regen_on_stale (+4 more)
+Cohesion: 0.05
+Nodes (37): policies, blocking_budget_ms, evict_below, max_claims_per_response, max_credits_per_response, mode, on_unverifiable, regen_budget_ms (+29 more)
 
 ### Community 25 - "prepare.py"
 Cohesion: 0.47
 Nodes (3): build(), prepare(), run()
 
 ### Community 26 - "release_fixture.py"
-Cohesion: 0.11
-Nodes (4): MockLLMHandler, claim(), completion(), Handler
+Cohesion: 0.16
+Nodes (3): claim(), completion(), Handler
 
 ### Community 27 - "Implementation status"
 Cohesion: 0.05
 Nodes (39): ChronoGuard evaluation methodology, Public gateway smoke test, Release evidence replay, Before presenting, ChronoGuard hackathon demo, Three-minute walkthrough, ChronoGuard, Development checks (+31 more)
 
 ### Community 28 - "EvalService"
-Cohesion: 0.23
-Nodes (5): EvalService, request_trace(), test_eval_service_freshqa_integration(), test_freshqa_dataset_structure(), test_unmeasured_fixture_does_not_publish_metrics()
+Cohesion: 0.25
+Nodes (4): EvalService, test_eval_service_freshqa_integration(), test_freshqa_dataset_structure(), test_unmeasured_fixture_does_not_publish_metrics()
 
 ### Community 29 - "nginx"
 Cohesion: 0.18
 Nodes (11): condition, condition, bifrost, console, verifier, depends_on, image, ports (+3 more)
 
 ### Community 30 - "release_demo.py"
-Cohesion: 0.24
-Nodes (4): main(), run(), chat(), counters()
+Cohesion: 0.15
+Nodes (6): main(), run_browser_checks(), main(), run(), chat(), counters()
 
 ### Community 32 - "ChronoGuard Technical Spikes & Gateway Interoperability Report"
 Cohesion: 0.15
@@ -283,6 +282,10 @@ Nodes (7): POSTGRES_DB, POSTGRES_PASSWORD, POSTGRES_USER, environment, image, vo
 ### Community 36 - "steps"
 Cohesion: 0.07
 Nodes (28): run, defaults, runs-on, steps, timeout-minutes, jobs, gateway-replay, name (+20 more)
+
+### Community 37 - "config"
+Cohesion: 0.10
+Nodes (24): client_config, enable_logging, enforce_auth_on_inference, db_name, host, password, port, scheme (+16 more)
 
 ### Community 38 - "services"
 Cohesion: 0.17
@@ -328,9 +331,9 @@ Nodes (7): REDIS_PASSWORD, REDISCLI_AUTH, command, environment, image, volumes, 
 Cohesion: 0.40
 Nodes (4): Cache lifecycle, ChronoGuard architecture, Decisions and tradeoffs, Evidence and claims
 
-### Community 49 - "Settings"
-Cohesion: 0.11
-Nodes (9): Settings, Database, lifespan(), prune_content(), run_jobs(), client(), guard_client(), app() (+1 more)
+### Community 49 - "lifespan"
+Cohesion: 0.33
+Nodes (4): TavilyClient, lifespan(), prune_content(), run_jobs()
 
 ### Community 50 - "Security decisions and review scope"
 Cohesion: 0.33
@@ -350,11 +353,11 @@ Nodes (5): realtime, cacheable, half_life_seconds, salience, soft_ttl_seconds
 
 ### Community 54 - "datetime"
 Cohesion: 0.29
-Nodes (6): main(), run_browser_checks(), points(), run_replay(), snapshot_at(), timestamp()
+Nodes (6): main(), points(), request_trace(), run_replay(), snapshot_at(), timestamp()
 
-### Community 55 - "clients.py"
-Cohesion: 0.11
-Nodes (9): DependencyUnavailable, ModelClient, strict_schema(), walk(), TavilyClient, Evidence, redact_query(), FailingJudgeModels (+1 more)
+### Community 55 - "Ingest"
+Cohesion: 0.18
+Nodes (8): Ingest, RecordHit, test_ingest_disallow_naive_datetime(), test_ingest_valid(), Feature A: Shadow Mode and ROI Report Implementation Plan, Task 2: Verifier API Contracts & Endpoints (`/internal/v1/record-hit` & `/api/v1/roi`), Task 4: Console `/roi` Page & Navigation, Task 5: Automated Testing & Evaluation Report
 
 ### Community 56 - "weights"
 Cohesion: 0.29
@@ -372,13 +375,9 @@ Nodes (3): Clock, get_clock(), set_clock()
 Cohesion: 0.50
 Nodes (4): privacy, redact_pii, retention_days, store_content
 
-### Community 72 - "standard"
-Cohesion: 0.17
-Nodes (12): standard, blocking_budget_ms, evict_below, max_claims_per_response, max_credits_per_response, mode, on_unverifiable, regen_budget_ms (+4 more)
-
-### Community 73 - "strict"
-Cohesion: 0.17
-Nodes (12): strict, blocking_budget_ms, evict_below, max_claims_per_response, max_credits_per_response, mode, on_unverifiable, regen_budget_ms (+4 more)
+### Community 72 - "ChronoGuard"
+Cohesion: 0.15
+Nodes (12): 1. Semantic-Hit Guard (Go Hook), 2. Budget-Optimal Poisson Scheduler, 3. Delta Revalidation (HTTP 304 Fast Path), 🏗️ Architecture, ChronoGuard, 🖥️ Console Pages Overview, 📌 Executive Summary, ⚡ Key Innovations (+4 more)
 
 ### Community 74 - "environment"
 Cohesion: 0.25
@@ -401,12 +400,12 @@ Cohesion: 0.33
 Nodes (5): build, entitlements, network, services, bifrost
 
 ### Community 98 - "ledger_totals"
-Cohesion: 0.50
-Nodes (5): get_roi(), latency(), percentile(), summary(), window_start()
+Cohesion: 0.29
+Nodes (7): get_roi(), latency(), percentile(), summary(), window_start(), ledger_totals(), test_net_savings_requires_prices_for_both_saved_and_spent_work()
 
 ### Community 99 - "test_gateway_lifecycle.py"
-Cohesion: 0.28
-Nodes (12): app(), body(), call(), FakeModels, FakeTavily, make_claim(), make_evidence(), test_cache_miss_extraction_and_manifest_indexing() (+4 more)
+Cohesion: 0.07
+Nodes (25): Settings, Database, client(), FakeBuckets, FakeClock, setup_verifier(), app(), body() (+17 more)
 
 ### Community 100 - "scripts"
 Cohesion: 0.33
@@ -417,8 +416,8 @@ Cohesion: 0.33
 Nodes (6): postgres, command, depends_on, image, condition, migrate
 
 ### Community 102 - "json"
-Cohesion: 0.13
-Nodes (13): ledger_totals(), test_classes_and_summary(), test_clock_endpoints(), test_eval_datasets_and_runs(), test_healthz(), test_net_savings_requires_prices_for_both_saved_and_spent_work(), test_readyz(), test_system_probe() (+5 more)
+Cohesion: 0.29
+Nodes (7): main(), test_classes_and_summary(), test_clock_endpoints(), test_eval_datasets_and_runs(), test_healthz(), test_readyz(), test_system_probe()
 
 ### Community 103 - "vite"
 Cohesion: 0.40
@@ -448,19 +447,19 @@ Nodes (3): detail_endpoint(), list_endpoint(), endpoint()
 Cohesion: 0.50
 Nodes (4): health_state(), internal_health(), ready(), settings_health()
 
-### Community 110 - "degrade"
+### Community 114 - "clock"
 Cohesion: 0.67
-Nodes (3): degrade, actions, threshold_pct
+Nodes (3): clock, allow_simulated, mode
 
 ## Knowledge Gaps
 - **2 isolated node(s):** `github.com/chronoguard/chronoguard`, `chronoguard-verifier`
-  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 573 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
-- **34 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+  These have ≤1 connection - possible missing edges or undocumented components. (Counts symbols only; 603 node(s) total have ≤1 connection when file, concept and rationale nodes are included.)
+- **38 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `Feature A: Shadow Mode and ROI Report Implementation Plan` connect `Repository` to `security.py`, `Runtime`?**
+- **Why does `Feature A: Shadow Mode and ROI Report Implementation Plan` connect `Ingest` to `Runtime`, `Repository`?**
   _High betweenness centrality (0.095) - this node is a cross-community bridge._
 - **Are the 6 inferred relationships involving `create_app()` (e.g. with `lifespan()` and `Category`) actually correct?**
   _`create_app()` has 6 INFERRED edges - model-reasoned connections that need verification._
@@ -468,9 +467,9 @@ _Questions this graph is uniquely positioned to answer:_
   _2 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `ui.tsx` be split into smaller, more focused modules?**
   _Cohesion score 0.07648483122062384 - nodes in this community are weakly interconnected._
-- **Why does `Task 3: Bifrost Go Plugin Shadow Mode` connect `Runtime` to `github.com/maximhq/bifrost/core/schemas.BifrostContext`, `Repository`?**
+- **Why does `Task 3: Bifrost Go Plugin Shadow Mode` connect `Runtime` to `github.com/maximhq/bifrost/core/schemas.BifrostContext`, `Ingest`?**
   _High betweenness centrality (0.094) - this node is a cross-community bridge._
 - **Are the 23 inferred relationships involving `Verdict` (e.g. with `ModelClient` and `status_for()`) actually correct?**
   _`Verdict` has 23 INFERRED edges - model-reasoned connections that need verification._
 - **Should `verify.py` be split into smaller, more focused modules?**
-  _Cohesion score 0.05729032258064516 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05767741935483871 - nodes in this community are weakly interconnected._

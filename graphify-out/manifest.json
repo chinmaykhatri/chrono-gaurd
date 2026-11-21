@@ -84,9 +84,9 @@
     "semantic_hash": ""
   },
   "chronoguard/console/src/App.tsx": {
-    "mtime": 1795274838.8056161,
-    "seen": 1795275075.7787452,
-    "ast_hash": "c94d4ac6c67058ee77dbcd5a334ecef1",
+    "mtime": 1795281865.058666,
+    "seen": 1795282136.188949,
+    "ast_hash": "965b452e40219e76aeb573f072ad10a4",
     "semantic_hash": ""
   },
   "chronoguard/console/src/api/client.ts": {
@@ -234,9 +234,9 @@
     "semantic_hash": ""
   },
   "chronoguard/verifier/app/main.py": {
-    "mtime": 1795274988.8787963,
-    "seen": 1795275075.7863529,
-    "ast_hash": "087709fcd55327e9974e14c3e569fbb9",
+    "mtime": 1795281834.740439,
+    "seen": 1795282136.2125044,
+    "ast_hash": "8de86bf9fd2ead33aa164a8c2a2072ea",
     "semantic_hash": ""
   },
   "chronoguard/verifier/app/pipeline/budget.py": {
@@ -282,9 +282,9 @@
     "semantic_hash": ""
   },
   "chronoguard/verifier/app/security.py": {
-    "mtime": 1794766659.8763187,
-    "seen": 1794769297.776094,
-    "ast_hash": "6d7b38d1bb45bb82c65db16493fdb896",
+    "mtime": 1795281847.035011,
+    "seen": 1795282136.214728,
+    "ast_hash": "a1fc3e1ddf59c7ac373138d3e5bf20ea",
     "semantic_hash": ""
   },
   "chronoguard/verifier/migrations/env.py": {
@@ -1005,6 +1005,42 @@
     "mtime": 1795275272.882504,
     "seen": 1795275329.8008232,
     "ast_hash": "7af0a8794e2c5b8b22e9a7f237869901",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/generate_deck.py": {
+    "mtime": 1795279643.9447942,
+    "seen": 1795282136.20404,
+    "ast_hash": "0e313fe672d28da72d8ca8be841b8a7c",
+    "semantic_hash": ""
+  },
+  "scratch/bifrost-runtime/config.json": {
+    "mtime": 1794772916.9113023,
+    "seen": 1795282136.2181537,
+    "ast_hash": "2a93bab805dd88cccf914b7b23124ae7",
+    "semantic_hash": ""
+  },
+  "scratch/capture_cache.py": {
+    "mtime": 1794769314.2290459,
+    "seen": 1795282136.2181566,
+    "ast_hash": "4f676f70bb3c88197712bdc1c47334e3",
+    "semantic_hash": ""
+  },
+  "scratch/seed_live.py": {
+    "mtime": 1794769314.2954004,
+    "seen": 1795282136.218164,
+    "ast_hash": "3dda2c8885132a8340928b6313c1df53",
+    "semantic_hash": ""
+  },
+  "scratch/verify_ui.py": {
+    "mtime": 1794769314.4266827,
+    "seen": 1795282136.218166,
+    "ast_hash": "76072982ba32e26d00945b3522e13f62",
+    "semantic_hash": ""
+  },
+  "README.md": {
+    "mtime": 1795281167.7350793,
+    "seen": 1795282136.220787,
+    "ast_hash": "a1e8645ee7aaaf57973174818bd35170",
     "semantic_hash": ""
   },
   "chronoguard/console/package-lock.json": {

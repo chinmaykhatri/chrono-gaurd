@@ -6,13 +6,17 @@ export class ApiError extends Error {
 }
 let csrfToken = '';
 export function setCsrfToken(token: string) { csrfToken = token; }
+const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
+const API_BASE = (metaEnv?.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
+
 export async function api<T = RecordData>(path: string, options: RequestInit = {}): Promise<T> {
   if (!path.startsWith('/') || path.startsWith('//') || path.includes('://')) throw new Error('API path must be relative.');
   const headers = new Headers(options.headers);
   headers.set('Accept', 'application/json');
   if (options.body) headers.set('Content-Type', 'application/json');
   if (options.method && !['GET', 'HEAD'].includes(options.method.toUpperCase())) headers.set('X-CSRF-Token', csrfToken);
-  const response = await fetch(`/api/v1${path}`, { ...options, credentials: 'same-origin', cache: 'no-store', headers });
+  const url = `${API_BASE}/api/v1${path}`;
+  const response = await fetch(url, { ...options, credentials: API_BASE ? 'include' : 'same-origin', cache: 'no-store', headers });
   const body = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401 && !path.startsWith('/auth/')) window.dispatchEvent(new Event('cg:unauthorized'));
