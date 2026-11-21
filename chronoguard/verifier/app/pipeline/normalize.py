@@ -12,9 +12,9 @@ VOCABULARY = {
 
 
 def slug(value: str):
-    value = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode().lower()
+    value = unicodedata.normalize("NFKC", value).casefold()
     value = re.sub(r"\b(inc|llc|ltd)\b\.?", "", value)
-    return re.sub(r"[^a-z0-9]+", "-", value).strip("-")
+    return re.sub(r"[^\w]+|_+", "-", value).strip("-")
 
 
 def fact_key(claim: Claim, aliases: dict[str, str] | None = None):
@@ -25,7 +25,8 @@ def fact_key(claim: Claim, aliases: dict[str, str] | None = None):
     category = VOCABULARY.get(claim.attribute, claim.class_key)
     attribute = claim.attribute if claim.attribute in VOCABULARY else "other:" + slug(claim.attribute)
     qualifier = ":" + slug(claim.qualifier) if claim.qualifier else ""
-    return f"{category.value}:{entity}:{attribute}{qualifier}", category
+    temporal_scope = f":as-of:{claim.as_of_hint.isoformat()}" if claim.as_of_hint else ""
+    return f"{category.value}:{entity}:{attribute}{qualifier}{temporal_scope}", category
 
 
 def skip_reason(claim: Claim):
