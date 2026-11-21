@@ -1,152 +1,31 @@
 #!/usr/bin/env python3
-"""
-ChronoGuard Evaluation Benchmark Runner
-Evaluates StaleBench-Mini (120 items) across baseline variants:
-- B0: No Cache Invalidation (Serve-as-is)
-- B1: Naive Fixed TTL Cache
-- B2: LLM Self-Check
-- B3: Always Verify (Tavily for all claims)
-- CG_full: ChronoGuard Full Architecture (Triage + Fact Ledger + 2-Key Rule + Freshness Scoring)
-- CG_no_ledger: Ablation without Fact Ledger
-"""
+"""Run the frozen release policy replay and optionally write its raw report."""
 
+import argparse
 import json
-import sys
 from pathlib import Path
+import sys
 
-BASE_DIR = Path(__file__).resolve().parent
-REPORTS_DIR = BASE_DIR / "reports"
-RESULTS_DIR = BASE_DIR / "results"
-REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE.parent / "verifier"))
 
-
-def load_dataset(dataset_name: str = "stalebench-mini"):
-    path = BASE_DIR / "dataset" / f"{dataset_name}.json"
-    if not path.exists():
-        print(f"Error: Dataset not found at {path}")
-        sys.exit(1)
-    with open(path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-        if isinstance(data, dict) and "items" in data:
-            return data["items"], data.get("name", dataset_name)
-        return data, dataset_name
+from app.release_replay import run_replay
 
 
-def run_benchmark(dataset_name: str = "stalebench-mini"):
-    items, display_name = load_dataset(dataset_name)
-    total = len(items)
-    outdated = [it for it in items if it.get("label") in ("outdated", "contradicted")]
-    current = [it for it in items if it.get("label") == "current"]
-
-    print("=" * 72)
-    print("CHRONOGUARD EVALUATION BENCHMARK")
-    print(f"Dataset: {display_name} ({total} items)")
-    print(f"Ground truth: {len(outdated)} outdated/contradicted, {len(current)} current/static")
-    print("=" * 72)
-
-    # Variant definitions
-    variants = [
-        {
-            "name": "B0: No Invalidation",
-            "tp": 0,
-            "fp": 0,
-            "fn": len(outdated),
-            "tn": len(current),
-            "credits": 0,
-            "p95_ms": 1.2,
-        },
-        {
-            "name": "B1: Naive Fixed TTL",
-            "tp": int(len(outdated) * 0.61),
-            "fp": int(len(current) * 0.18),
-            "fn": len(outdated) - int(len(outdated) * 0.61),
-            "tn": len(current) - int(len(current) * 0.18),
-            "credits": 0,
-            "p95_ms": 1.5,
-        },
-        {
-            "name": "B2: LLM Self-Check",
-            "tp": int(len(outdated) * 0.58),
-            "fp": int(len(current) * 0.14),
-            "fn": len(outdated) - int(len(outdated) * 0.58),
-            "tn": len(current) - int(len(current) * 0.14),
-            "credits": 0,
-            "p95_ms": 820.0,
-        },
-        {
-            "name": "B3: Always Verify (All)",
-            "tp": int(len(outdated) * 0.95),
-            "fp": int(len(current) * 0.04),
-            "fn": len(outdated) - int(len(outdated) * 0.95),
-            "tn": len(current) - int(len(current) * 0.04),
-            "credits": total * 2,
-            "p95_ms": 1450.0,
-        },
-        {
-            "name": "CG_no_ledger (Ablation)",
-            "tp": int(len(outdated) * 0.94),
-            "fp": int(len(current) * 0.03),
-            "fn": len(outdated) - int(len(outdated) * 0.94),
-            "tn": len(current) - int(len(current) * 0.03),
-            "credits": 142,
-            "p95_ms": 3.1,
-        },
-        {
-            "name": "CG_full (ChronoGuard)",
-            "tp": int(len(outdated) * 0.94),
-            "fp": int(len(current) * 0.03),
-            "fn": len(outdated) - int(len(outdated) * 0.94),
-            "tn": len(current) - int(len(current) * 0.03),
-            "credits": 48,  # Fact Ledger reuses 66% of evidence
-            "p95_ms": 2.8,  # Under 3ms overhead on cache hits
-        },
-    ]
-
-    print(f"{'Variant':<25} | {'Prec':<6} | {'Recall':<6} | {'F1':<6} | {'FCR':<6} | {'Credits':<7} | {'p95 (ms)':<8}")
-    print("-" * 75)
-
-    summary_rows = []
-    for v in variants:
-        tp, fp, fn, tn = v["tp"], v["fp"], v["fn"], v["tn"]
-        prec = round(tp / (tp + fp), 3) if (tp + fp) else 0.0
-        rec = round(tp / (tp + fn), 3) if (tp + fn) else 0.0
-        f1 = round(2 * prec * rec / (prec + rec), 3) if (prec + rec) else 0.0
-        fcr = round(fp / (fp + tn), 3) if (fp + tn) else 0.0
-        credits = v["credits"]
-        p95 = v["p95_ms"]
-
-        print(f"{v['name']:<25} | {prec:<6.3f} | {rec:<6.3f} | {f1:<6.3f} | {fcr:<6.3f} | {credits:<7} | {p95:<8.1f}")
-        summary_rows.append({
-            "variant": v["name"],
-            "precision": prec,
-            "recall": rec,
-            "f1": f1,
-            "false_correction_rate": fcr,
-            "credits": credits,
-            "latency_p95_ms": p95,
-        })
-
-    report_filename = f"{dataset_name}-benchmark.json" if "freshqa" in dataset_name else "eval_report.json"
-    report_path = REPORTS_DIR / report_filename
-    report_data = {
-        "dataset": dataset_name,
-        "display_name": display_name,
-        "items": total,
-        "provenance": "external_benchmark" if "freshqa" in dataset_name else "internal_benchmark",
-        "results": summary_rows,
-    }
-    with open(report_path, "w", encoding="utf-8") as f:
-        json.dump(report_data, f, indent=2)
-
-    with open(RESULTS_DIR / "eval_report.json", "w", encoding="utf-8") as f:
-        json.dump(report_data, f, indent=2)
-
-    print("=" * 75)
-    print(f"Report written to {report_path}")
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path)
+    args = parser.parse_args()
+    trace = json.loads((HERE / "dataset" / "release-replay.json").read_text(encoding="utf-8"))
+    report = run_replay(trace)
+    print(report["description"])
+    print(f"{'Variant':<18} {'Stale hits / 1000':>18} {'Credits / 1000 req':>20} {'Repairs':>8}")
+    for row in report["variants"]:
+        stale = row["stale_per_1000_hits"]
+        print(f"{row['variant']:<18} {str(stale):>18} {row['credits_per_1000_requests']:>20.2f} {row['repairs']:>8}")
+    if args.output:
+        args.output.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":
-    target = sys.argv[1] if len(sys.argv) > 1 else "stalebench-mini"
-    run_benchmark(target)
-
+    main()
