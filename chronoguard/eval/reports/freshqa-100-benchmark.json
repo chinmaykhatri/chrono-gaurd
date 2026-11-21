@@ -2,7 +2,7 @@
   "dataset": "freshqa-100",
   "display_name": "FreshQA 100 Benchmark Slice",
   "items": 100,
-  "provenance": "external_benchmark",
+  "provenance": "illustrative_legacy",
   "results": [
     {
       "variant": "B0: No Invalidation",
@@ -58,5 +58,6 @@
       "credits": 48,
       "latency_p95_ms": 2.8
     }
-  ]
+  ],
+  "evaluation_method": "Formula-derived numbers from a historical prototype. Excluded from measured results."
 }
