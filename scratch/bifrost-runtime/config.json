@@ -1,0 +1,69 @@
+{
+  "$schema": "https://www.getbifrost.ai/schema",
+  "config_store": {
+    "enabled": true,
+    "type": "postgres",
+    "config": {
+      "host": "127.0.0.1",
+      "port": 55432,
+      "user": "chronoguard",
+      "password": "-0iZXvXlfJdh8DoLoyujlh6W1VyNSck9qWfxHKu5u0g",
+      "db_name": "chronoguard",
+      "ssl_mode": "disable"
+    }
+  },
+  "logs_store": {
+    "enabled": true,
+    "type": "postgres",
+    "config": {
+      "host": "127.0.0.1",
+      "port": 55432,
+      "user": "chronoguard",
+      "password": "-0iZXvXlfJdh8DoLoyujlh6W1VyNSck9qWfxHKu5u0g",
+      "db_name": "chronoguard",
+      "ssl_mode": "disable"
+    }
+  },
+  "client_config": {
+    "enable_logging": false,
+    "enforce_auth_on_inference": false
+  },
+  "vector_store": {
+    "enabled": true,
+    "type": "weaviate",
+    "config": {
+      "scheme": "http",
+      "host": "localhost:9000"
+    }
+  },
+  "plugins": [
+    {
+      "enabled": true,
+      "name": "cg-front",
+      "config": {
+        "verifier_url": "http://127.0.0.1:8000",
+        "redis_url": "redis://:J-hOunDlmrxwf93e8DCe1hc-RI_uAT8gG7oMFXoff8g@127.0.0.1:56379/0",
+        "internal_key": "d9w-jy4OLLTCRLk9BuahBd-Umr-mDvAsKarU3tFUInpBA1Bq3Ambf00yrOWRMn3O",
+        "single_tenant_id": "default"
+      }
+    },
+    {
+      "enabled": true,
+      "name": "semantic_cache",
+      "config": {
+        "dimension": 1,
+        "vector_store_namespace": "ChronoGuard"
+      }
+    },
+    {
+      "enabled": true,
+      "name": "cg-back",
+      "config": {
+        "verifier_url": "http://127.0.0.1:8000",
+        "redis_url": "redis://:J-hOunDlmrxwf93e8DCe1hc-RI_uAT8gG7oMFXoff8g@127.0.0.1:56379/0",
+        "internal_key": "d9w-jy4OLLTCRLk9BuahBd-Umr-mDvAsKarU3tFUInpBA1Bq3Ambf00yrOWRMn3O",
+        "single_tenant_id": "default"
+      }
+    }
+  ]
+}
