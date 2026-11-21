@@ -1,0 +1,1016 @@
+{
+  "chronoguard/bifrost/plugins/chronoguard/back/plugin.go": {
+    "mtime": 1794762870.238498,
+    "seen": 1794763403.6972215,
+    "ast_hash": "84fe8d072aa9d0edb79af0eabcd9b692",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/back/plugin_test.go": {
+    "mtime": 1794762870.2398162,
+    "seen": 1794763403.6972275,
+    "ast_hash": "4926b6e486b169c2e2a50c0e014d4d68",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/front/plugin.go": {
+    "mtime": 1795200650.2474828,
+    "seen": 1795200721.9029536,
+    "ast_hash": "97f4d79052881870639b852383328aa5",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/front/plugin_test.go": {
+    "mtime": 1795200178.6558766,
+    "seen": 1795200721.9029555,
+    "ast_hash": "c7346ce038fdc46fa0841d5d9ca83815",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/go.mod": {
+    "mtime": 1794772928.4707398,
+    "seen": 1795032003.3756874,
+    "ast_hash": "8a810f4df409d5a11347854f8f58f7de",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/classify/classify.go": {
+    "mtime": 1794754594.7415898,
+    "seen": 1794763403.6972337,
+    "ast_hash": "8c1514dc0f8a1474c7c0ce888c28b2c0",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/classify/classify_test.go": {
+    "mtime": 1794754594.7415898,
+    "seen": 1794763403.6972346,
+    "ast_hash": "c1e8bb77eaaaa4f7433a1080a9a8a623",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/decide/decide.go": {
+    "mtime": 1795199750.0316677,
+    "seen": 1795200721.9034128,
+    "ast_hash": "0921855aedcd23ac335060d3346b20af",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/decide/decide_test.go": {
+    "mtime": 1794754594.7407463,
+    "seen": 1794763403.6972365,
+    "ast_hash": "05a89794bd4bfea3c71d2499d764f0c0",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/manifest/manifest.go": {
+    "mtime": 1795198400.846619,
+    "seen": 1795200721.9035664,
+    "ast_hash": "f2c02a4e7cc8a61559c0119c41d72ee3",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/runtime/runtime.go": {
+    "mtime": 1795200224.7922592,
+    "seen": 1795200721.9035683,
+    "ast_hash": "fa9f59c7762722d24ae41e16b3aaf704",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/verifierclient/client.go": {
+    "mtime": 1795200594.1282797,
+    "seen": 1795200721.9035702,
+    "ast_hash": "37cbfcd9ae78753dccb57b6a65ba3419",
+    "semantic_hash": ""
+  },
+  "chronoguard/chronoguard.yaml": {
+    "mtime": 1795200522.606114,
+    "seen": 1795200721.9035747,
+    "ast_hash": "45cd9e6e0dd2034fc6b42fb9f469799f",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/package.json": {
+    "mtime": 1795274080.4272313,
+    "seen": 1795275075.7787428,
+    "ast_hash": "319166029ff27d5a2831931a87ee1bf5",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/App.tsx": {
+    "mtime": 1795274838.8056161,
+    "seen": 1795275075.7787452,
+    "ast_hash": "c94d4ac6c67058ee77dbcd5a334ecef1",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/api/client.ts": {
+    "mtime": 1794754444.8090324,
+    "seen": 1794763403.697243,
+    "ast_hash": "0def881e77b0a7576646664173bac2e2",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/components/ui.test.ts": {
+    "mtime": 1794769148.5931795,
+    "seen": 1794769297.7733595,
+    "ast_hash": "b3e3bc509b89815314ef0b8a30c816c2",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/components/ui.tsx": {
+    "mtime": 1795274661.766178,
+    "seen": 1795275075.779104,
+    "ast_hash": "a55748f61967459c4cefd34329b9b5c3",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/hooks/data.ts": {
+    "mtime": 1794754444.8090324,
+    "seen": 1794763403.6972456,
+    "ast_hash": "abbd09d12aa567d43d64ec5632c87ee9",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/main.tsx": {
+    "mtime": 1794754370.2631798,
+    "seen": 1794763403.6972466,
+    "ast_hash": "b902c325c93b4ffcaf16aba3a64e98aa",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/pages/Playground.tsx": {
+    "mtime": 1794754639.4000354,
+    "seen": 1794763403.6972475,
+    "ast_hash": "3314a9ab2bd9e8bf66a915ed7cd1b554",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/pages/management.tsx": {
+    "mtime": 1795273733.4439,
+    "seen": 1795275075.7795427,
+    "ast_hash": "6ae7bf69c4d80e9089ba63d198fd9436",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/pages/records.tsx": {
+    "mtime": 1795274999.7660308,
+    "seen": 1795275075.7795444,
+    "ast_hash": "49d1598ecfda50c877518ea8a9fc45dc",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/tsconfig.json": {
+    "mtime": 1794754370.2604158,
+    "seen": 1794763403.6972504,
+    "ast_hash": "f995b14bd8ac7642ddcc351bd358531f",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/vite.config.ts": {
+    "mtime": 1794758128.7512498,
+    "seen": 1794763403.6972513,
+    "ast_hash": "442553a3b756dffa52dac45d33b3d1b8",
+    "semantic_hash": ""
+  },
+  "chronoguard/deploy/compose.data.yml": {
+    "mtime": 1794754608.8231733,
+    "seen": 1794763403.697252,
+    "ast_hash": "63ee2dd35a0860afbf04d550248e5e8a",
+    "semantic_hash": ""
+  },
+  "chronoguard/docker-compose.yml": {
+    "mtime": 1795202371.7487204,
+    "seen": 1795275075.7800682,
+    "ast_hash": "a0a200ef6ab5ca98a954e670f2014a99",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/dataset/stalebench-mini.json": {
+    "mtime": 1794762871.794587,
+    "seen": 1794763403.697254,
+    "ast_hash": "93b396750a70f3f1f30a231d4f3acb80",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/results/eval_report.json": {
+    "mtime": 1795199835.8425274,
+    "seen": 1795200721.9067442,
+    "ast_hash": "0aa91fdbbf1fe91c8ebd1c4f0392e2f6",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/run_eval.py": {
+    "mtime": 1795198798.9857183,
+    "seen": 1795200721.9067464,
+    "ast_hash": "76d9138ff926fa09b58e318b926e1e18",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/world_scripts/mock_tavily.json": {
+    "mtime": 1794762858.9896352,
+    "seen": 1794763403.6972568,
+    "ast_hash": "b1623b0f3bc90effdf2ea369ac7b4b01",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/bootstrap.py": {
+    "mtime": 1795200298.7812922,
+    "seen": 1795200721.906869,
+    "ast_hash": "b97222231386955eb8f1bb5a461caad2",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/local_data.py": {
+    "mtime": 1794754664.8032572,
+    "seen": 1794763403.6972585,
+    "ast_hash": "8ada7d010f0e82beac3f3ede544cb766",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/__init__.py": {
+    "mtime": 1794754426.7962155,
+    "seen": 1794763403.6972592,
+    "ast_hash": "142d34373d59e784b718b69dd0cc31cb",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/clients.py": {
+    "mtime": 1795200383.472775,
+    "seen": 1795200721.9087858,
+    "ast_hash": "5b25df8e425dbd26f2cf569f05fa74a7",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/clock/service.py": {
+    "mtime": 1794762523.6015851,
+    "seen": 1794763403.697261,
+    "ast_hash": "4ffc56c1f469a3deafb72c830a2dff01",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/config.py": {
+    "mtime": 1795200764.30821,
+    "seen": 1795201454.8851018,
+    "ast_hash": "ea48f791ed22aa69f082a3605ee7477c",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/db.py": {
+    "mtime": 1795031593.9991322,
+    "seen": 1795032003.378399,
+    "ast_hash": "d81226bda19e854c15b8e9c047380f57",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/eval_runner.py": {
+    "mtime": 1795200003.1154363,
+    "seen": 1795200721.9091172,
+    "ast_hash": "7410d414db06290f7d0cb73691e66925",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/main.py": {
+    "mtime": 1795274988.8787963,
+    "seen": 1795275075.7863529,
+    "ast_hash": "087709fcd55327e9974e14c3e569fbb9",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/pipeline/budget.py": {
+    "mtime": 1795199271.6490266,
+    "seen": 1795200721.9091218,
+    "ast_hash": "321d2e1a8100be1652149e89766852a1",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/pipeline/normalize.py": {
+    "mtime": 1795199630.6218214,
+    "seen": 1795200721.9091241,
+    "ast_hash": "304f5e123f8d5817bfceaafdc57a4c39",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/pipeline/triage.py": {
+    "mtime": 1794756808.120497,
+    "seen": 1794763403.697267,
+    "ast_hash": "336a77f47b5470a684af07159dab5b1b",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/pipeline/verify.py": {
+    "mtime": 1795201598.2520344,
+    "seen": 1795202302.6311095,
+    "ast_hash": "87e496e7adf0090b63cc126e5a831007",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/repository.py": {
+    "mtime": 1795274988.87729,
+    "seen": 1795275075.7871523,
+    "ast_hash": "cb94085d079c21c06a12aed7599a15e9",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/schemas/contracts.py": {
+    "mtime": 1795200575.9696918,
+    "seen": 1795200721.9093027,
+    "ast_hash": "a670586d267411ce67588913d16ab1ff",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/scoring/freshness.py": {
+    "mtime": 1795199630.6218214,
+    "seen": 1795200721.9093056,
+    "ast_hash": "c4b9bc51e1471956b4963cc6ba457569",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/security.py": {
+    "mtime": 1794766659.8763187,
+    "seen": 1794769297.776094,
+    "ast_hash": "6d7b38d1bb45bb82c65db16493fdb896",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/migrations/env.py": {
+    "mtime": 1794754580.1037924,
+    "seen": 1794763403.6972728,
+    "ast_hash": "b7808c215e1848a5904fee6b0de07d29",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/migrations/versions/0001_initial.py": {
+    "mtime": 1794754580.1833012,
+    "seen": 1794763403.6972735,
+    "ast_hash": "f9d2f93803791c723342ff3ebaf32bb8",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/pyproject.toml": {
+    "mtime": 1794762532.7551627,
+    "seen": 1794763403.6972747,
+    "ast_hash": "5fe07edae1b2a90fc60385a0c0b14ea2",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_api.py": {
+    "mtime": 1795274988.8802667,
+    "seen": 1795275075.7882216,
+    "ast_hash": "f854009ecef9cd04514649ff8e943ca5",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_freshness.py": {
+    "mtime": 1794762859.3853943,
+    "seen": 1794763403.697276,
+    "ast_hash": "d0b00d4f644b53b4e28c45facf1d3abb",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_pipeline.py": {
+    "mtime": 1795201431.330702,
+    "seen": 1795201454.8883545,
+    "ast_hash": "309772d3b89fa5b63a1e524c9ee644d2",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_schemas.py": {
+    "mtime": 1795202531.7472322,
+    "seen": 1795275075.7897174,
+    "ast_hash": "dc0d6d85efe55f0f7c835e3b829a9c9f",
+    "semantic_hash": ""
+  },
+  "chronoguard/README.md": {
+    "mtime": 1795275272.8831477,
+    "seen": 1795275329.8158424,
+    "ast_hash": "a5d54607b3141409c3181dfade2085c3",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/index.html": {
+    "mtime": 1795274661.7692983,
+    "seen": 1795275075.7913163,
+    "ast_hash": "f99566f75eccb2230cbbeb34813ab910",
+    "semantic_hash": ""
+  },
+  "chronoguard/docs/architecture.md": {
+    "mtime": 1795200522.4852612,
+    "seen": 1795200721.912493,
+    "ast_hash": "80a146e1139b47675e4e8621ebd905ad",
+    "semantic_hash": ""
+  },
+  "chronoguard/docs/benchmark.md": {
+    "mtime": 1795201703.0911527,
+    "seen": 1795202302.634328,
+    "ast_hash": "2cd6835bda24b5f044eae0d227e1ecd0",
+    "semantic_hash": ""
+  },
+  "chronoguard/docs/demo-script.md": {
+    "mtime": 1795200298.7792947,
+    "seen": 1795200721.912497,
+    "ast_hash": "f16b512b3a11ea29da2b361607e7de28",
+    "semantic_hash": ""
+  },
+  "claude.md": {
+    "mtime": 1793565337.6825974,
+    "seen": 1794763403.697283,
+    "ast_hash": "e56c884b38c6707471a62fc429079d18",
+    "semantic_hash": ""
+  },
+  "docs/00-cover-and-conventions.md": {
+    "mtime": 1793566131.4714978,
+    "seen": 1794763403.697284,
+    "ast_hash": "fb2fb99c2190ad61e7bfd607688ca036",
+    "semantic_hash": ""
+  },
+  "docs/01-product-requirements-document.md": {
+    "mtime": 1793566131.4725842,
+    "seen": 1794763403.697285,
+    "ast_hash": "ccf765ac6ef2ac37199e81ecb710985e",
+    "semantic_hash": ""
+  },
+  "docs/02-website-and-system-working-flow.md": {
+    "mtime": 1793566131.4725842,
+    "seen": 1794763403.697286,
+    "ast_hash": "f8b2b479f914f045c4de77567a02331e",
+    "semantic_hash": ""
+  },
+  "docs/03-feature-specifications.md": {
+    "mtime": 1793566131.4725842,
+    "seen": 1794763403.6972866,
+    "ast_hash": "bef9a0a2dd91e34c0bbb1727290ee112",
+    "semantic_hash": ""
+  },
+  "docs/04-technical-requirements-document.md": {
+    "mtime": 1793566131.4735885,
+    "seen": 1794763403.6972873,
+    "ast_hash": "cd7488e87c06f0d14a73509c696e3a18",
+    "semantic_hash": ""
+  },
+  "docs/05-implementation-plan.md": {
+    "mtime": 1793566131.474583,
+    "seen": 1794763403.6972883,
+    "ast_hash": "b5a7966f49b5f245c3df3b88ea38142c",
+    "semantic_hash": ""
+  },
+  "docs/06-backend-schema.md": {
+    "mtime": 1793566131.474583,
+    "seen": 1794763403.697289,
+    "ast_hash": "ffbf18908675bf125177cc436182852b",
+    "semantic_hash": ""
+  },
+  "docs/appendix-a-bifrost-tavily-usage-map.md": {
+    "mtime": 1793566131.474583,
+    "seen": 1794763403.6972897,
+    "ast_hash": "6ba3c0e062c24b0684b419a3bca91af7",
+    "semantic_hash": ""
+  },
+  "docs/implementation-status.md": {
+    "mtime": 1795200522.6071184,
+    "seen": 1795200721.9139497,
+    "ast_hash": "82bd0a973edc8bf6d9142b88b34b3620",
+    "semantic_hash": ""
+  },
+  "docs/security-decisions.md": {
+    "mtime": 1794754608.827224,
+    "seen": 1794763403.6972916,
+    "ast_hash": "85b440b1827480372a9d4ac31cb58efa",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-11-02-chronoguard-implementation.md": {
+    "mtime": 1793566881.4042816,
+    "seen": 1794763403.6972926,
+    "ast_hash": "ed797711cc012e38222318bb33179ccc",
+    "semantic_hash": ""
+  },
+  "docs/test-plan.md": {
+    "mtime": 1794754535.6723146,
+    "seen": 1794763403.6972933,
+    "ast_hash": "308516c20850de889b3979dbe1f6781c",
+    "semantic_hash": ""
+  },
+  "screenshots/console-cache.png": {
+    "mtime": 1794758051.263298,
+    "seen": 1794763403.6972942,
+    "ast_hash": "48ded64c2f52fb35a2712d1f23993133",
+    "semantic_hash": ""
+  },
+  "screenshots/console-overview-desktop.png": {
+    "mtime": 1794757864.6161702,
+    "seen": 1794763403.6972952,
+    "ast_hash": "0de7a486162e08684a00ed2b2f5bd923",
+    "semantic_hash": ""
+  },
+  "screenshots/console-overview-final.png": {
+    "mtime": 1794758454.2787948,
+    "seen": 1794763403.6972961,
+    "ast_hash": "fce88fa8af3ae2bdc4c073f873656edc",
+    "semantic_hash": ""
+  },
+  "screenshots/console-overview.png": {
+    "mtime": 1794757845.59823,
+    "seen": 1794763403.697297,
+    "ast_hash": "4e14f8247da2d16304a9dc6bb1b556b8",
+    "semantic_hash": ""
+  },
+  "screenshots/console-playground-final.png": {
+    "mtime": 1794758476.603099,
+    "seen": 1794763403.6972978,
+    "ast_hash": "667a8bf6ba2fa4229869809577e2babc",
+    "semantic_hash": ""
+  },
+  "screenshots/console-playground.png": {
+    "mtime": 1794757922.538862,
+    "seen": 1794763403.697299,
+    "ast_hash": "3371d73d9bcf3863df28fb52da1c4bbe",
+    "semantic_hash": ""
+  },
+  "screenshots/console-policies.png": {
+    "mtime": 1794758684.5123274,
+    "seen": 1794763403.6972997,
+    "ast_hash": "75f9ecf3e00005c6e48b8f89d7e7c9a2",
+    "semantic_hash": ""
+  },
+  "screenshots/console-settings-final.png": {
+    "mtime": 1794758226.6309729,
+    "seen": 1794763403.6973004,
+    "ast_hash": "2f0446673893478060c41885d0edaa2c",
+    "semantic_hash": ""
+  },
+  "screenshots/console-settings.png": {
+    "mtime": 1794757969.337541,
+    "seen": 1794763403.6973014,
+    "ast_hash": "efe523557c2bd6292b3b342e9bc7adff",
+    "semantic_hash": ""
+  },
+  "screenshots/overview-before.png": {
+    "mtime": 1794758994.3662941,
+    "seen": 1794763403.6973026,
+    "ast_hash": "4b300cabd93184bc71176efc84b3ef90",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/browser_test.py": {
+    "mtime": 1794764176.3956518,
+    "seen": 1794769297.7748048,
+    "ast_hash": "49f8e3ade3f2368b02c248a80a052fde",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_gateway_lifecycle.py": {
+    "mtime": 1795273733.4449394,
+    "seen": 1795275075.7892327,
+    "ast_hash": "944784e5da556a912e31e456042f2be4",
+    "semantic_hash": ""
+  },
+  "screenshots/01_login.png": {
+    "mtime": 1794764184.4369645,
+    "seen": 1794769297.7788718,
+    "ast_hash": "371b1d040bbad9d90b37b00ea4d9a0f2",
+    "semantic_hash": ""
+  },
+  "screenshots/02_overview.png": {
+    "mtime": 1794764185.5758264,
+    "seen": 1794769297.778874,
+    "ast_hash": "1cadf04b99bb47d83e7b2398bd03180f",
+    "semantic_hash": ""
+  },
+  "screenshots/03_playground.png": {
+    "mtime": 1794764186.2020595,
+    "seen": 1794769297.7788749,
+    "ast_hash": "6bb1b0c4ac8ba521e3462a9a67910320",
+    "semantic_hash": ""
+  },
+  "screenshots/04_feed.png": {
+    "mtime": 1794764186.813391,
+    "seen": 1794769297.778876,
+    "ast_hash": "f61f9f7524aa6a7bef03efea50bfdcb3",
+    "semantic_hash": ""
+  },
+  "screenshots/05_cache.png": {
+    "mtime": 1794764187.4228284,
+    "seen": 1794769297.7788775,
+    "ast_hash": "e841198ecd1a56b3ef81f924da12ba65",
+    "semantic_hash": ""
+  },
+  "screenshots/06_facts.png": {
+    "mtime": 1794764188.0257118,
+    "seen": 1794769297.7788787,
+    "ast_hash": "a90d24c550f86b7c6c7f323c8cfd4ad9",
+    "semantic_hash": ""
+  },
+  "screenshots/07_policies.png": {
+    "mtime": 1794764189.6912982,
+    "seen": 1794769297.7788796,
+    "ast_hash": "110a330ade3f773bf2371ed624e84247",
+    "semantic_hash": ""
+  },
+  "screenshots/08_costs.png": {
+    "mtime": 1794764190.3024209,
+    "seen": 1794769297.778881,
+    "ast_hash": "d060f36cc59fcceeae2a937c038c326d",
+    "semantic_hash": ""
+  },
+  "screenshots/09_eval.png": {
+    "mtime": 1794764190.9371412,
+    "seen": 1794769297.778882,
+    "ast_hash": "f466c0863e8db00a6cbd8276875b3eb8",
+    "semantic_hash": ""
+  },
+  "screenshots/10_settings.png": {
+    "mtime": 1794764195.1110134,
+    "seen": 1794769297.7788832,
+    "ast_hash": "2b282d70448fafbee8d26778f737ce39",
+    "semantic_hash": ""
+  },
+  "screenshots/cache_detail_diff.png": {
+    "mtime": 1794769252.6996229,
+    "seen": 1794769297.7788846,
+    "ast_hash": "41df7520199e19f9277b1ff061902d24",
+    "semantic_hash": ""
+  },
+  "screenshots/feed_lifecycle.png": {
+    "mtime": 1794769229.9762094,
+    "seen": 1794769297.7797632,
+    "ast_hash": "78d32e7dc005b7b637e05ceba1c5575f",
+    "semantic_hash": ""
+  },
+  "screenshots/overview_with_probe.png": {
+    "mtime": 1794769225.4862375,
+    "seen": 1794769297.779868,
+    "ast_hash": "a57e8332d3161a41569644f163a167c0",
+    "semantic_hash": ""
+  },
+  "screenshots/probe_verified.png": {
+    "mtime": 1794769226.7286062,
+    "seen": 1794769297.779869,
+    "ast_hash": "ea011d5b5b78ec6534857ffab15480c9",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/cmd/guardeval/main.go": {
+    "mtime": 1795200593.9865108,
+    "seen": 1795200721.9029515,
+    "ast_hash": "0c00e5f1d603d28122426199310a44d1",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/guard/guard.go": {
+    "mtime": 1795275194.379212,
+    "seen": 1795275329.7977407,
+    "ast_hash": "862c95dbc15c6c3ba1bd3b4abbff06a6",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/plugins/chronoguard/internal/guard/guard_test.go": {
+    "mtime": 1795275210.967085,
+    "seen": 1795275329.7977436,
+    "ast_hash": "41e3448e539956c4822b6d75284b830f",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/pages/ROI.tsx": {
+    "mtime": 1795274661.7682583,
+    "seen": 1795275075.779541,
+    "ast_hash": "de53dbfd625176ad61dd692115f55d81",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/dataset/freshqa-100.json": {
+    "mtime": 1795200003.0957725,
+    "seen": 1795200721.9051661,
+    "ast_hash": "1905bb01a86f52f203afae41ca3eccba",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/guard_pairs.json": {
+    "mtime": 1795030476.045985,
+    "seen": 1795032003.377653,
+    "ast_hash": "a5ad709c7e2cf9cd79365b86fd8b9cd7",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/delta-eval.json": {
+    "mtime": 1795031516.5711854,
+    "seen": 1795032003.3776548,
+    "ast_hash": "5c3f49d1aa02dbbc91af79fa12716bbc",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/freshqa-100-benchmark.json": {
+    "mtime": 1795199835.844626,
+    "seen": 1795200721.905521,
+    "ast_hash": "0aa91fdbbf1fe91c8ebd1c4f0392e2f6",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/guard-eval.json": {
+    "mtime": 1795200311.5959535,
+    "seen": 1795200721.9055226,
+    "ast_hash": "28208e6b918e396349141fc5c7edec88",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/roi-shadow-20261118.json": {
+    "mtime": 1795029311.3379939,
+    "seen": 1795032003.3776586,
+    "ast_hash": "ff953d9296f0e95f0511bcf26a609b00",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/scheduler-eval.json": {
+    "mtime": 1795031860.3536308,
+    "seen": 1795032003.3776612,
+    "ast_hash": "9de350b98b1f50f55686512c938c00d2",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-185536.json": {
+    "mtime": 1795028136.2937431,
+    "seen": 1795032003.3776627,
+    "ast_hash": "984c72f2dd15d8de1c0053cb89f229d0",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-191449.json": {
+    "mtime": 1795029289.6802423,
+    "seen": 1795032003.377664,
+    "ast_hash": "fd7f15fca0238fbe03fc6522c2233127",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-191649.json": {
+    "mtime": 1795029409.4927754,
+    "seen": 1795032003.377665,
+    "ast_hash": "a194ff3fd004cb56217ad16f73681cbc",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-192553.json": {
+    "mtime": 1795029953.1469295,
+    "seen": 1795032003.3776662,
+    "ast_hash": "6b13ccb3dc4415fdcbf610c065b8bb23",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-192702.json": {
+    "mtime": 1795030022.839101,
+    "seen": 1795032003.3776677,
+    "ast_hash": "310934d2e80465759fb334c972868f92",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-192751.json": {
+    "mtime": 1795030071.1571157,
+    "seen": 1795032003.3776686,
+    "ast_hash": "25611cadedd37b65c7e364241be7bf00",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-194121.json": {
+    "mtime": 1795030881.1182623,
+    "seen": 1795032003.3776696,
+    "ast_hash": "625390c1d544d805cc05af5118b343a7",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-195214.json": {
+    "mtime": 1795031534.7079444,
+    "seen": 1795032003.377671,
+    "ast_hash": "de5af9937b8b76665d1b7cbe5d494437",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/reports/verify-proof-20261118-195836.json": {
+    "mtime": 1795031916.4573734,
+    "seen": 1795032003.3776717,
+    "ast_hash": "8841c9da046c5204ee132628007ec7c6",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/run_guard_eval.py": {
+    "mtime": 1795200631.1580746,
+    "seen": 1795200721.9067485,
+    "ast_hash": "dbb729f347982196cc968db8fb612796",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/e2e_live": {
+    "mtime": 1794772912.2299283,
+    "seen": 1795032003.3779821,
+    "ast_hash": "3139778528eea8a71fb88cf00f576a48",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/e2e_live.ps1": {
+    "mtime": 1794772912.594152,
+    "seen": 1795032003.3779838,
+    "ast_hash": "7948fc9c1c88b3f08a81d3b2b3de00ec",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/e2e_live.py": {
+    "mtime": 1795200298.651198,
+    "seen": 1795200721.9072366,
+    "ast_hash": "956f76e8e79d2d6592710392a0f2308a",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/freshqa_import": {
+    "mtime": 1795029698.780003,
+    "seen": 1795032003.3779867,
+    "ast_hash": "0376ac3b2babab28458545a601de0d22",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/freshqa_import.ps1": {
+    "mtime": 1795029694.8019946,
+    "seen": 1795032003.3779876,
+    "ast_hash": "6ef556d8a059fd1794e0ba601d808958",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/freshqa_import.py": {
+    "mtime": 1795200003.0947716,
+    "seen": 1795200721.9074702,
+    "ast_hash": "64e98836a5ec836b1033b5918754c637",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/guard_eval": {
+    "mtime": 1795030668.587011,
+    "seen": 1795032003.3779902,
+    "ast_hash": "e72f23dbf64c2ab90e95b0ce507fdffe",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/guard_eval.ps1": {
+    "mtime": 1795030664.3033144,
+    "seen": 1795032003.3779914,
+    "ast_hash": "42af788bcdfe08d06b793709e76954f5",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/mock_llm.py": {
+    "mtime": 1794772912.7510726,
+    "seen": 1795032003.3780882,
+    "ast_hash": "ee8539b34eeaa17b0c0b00b648ed1b9d",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/simulate_scheduler.py": {
+    "mtime": 1795031856.1029155,
+    "seen": 1795032003.3780894,
+    "ast_hash": "8d04bddf292fc24679af66b1732fd48a",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/verify-proof": {
+    "mtime": 1795026884.8475666,
+    "seen": 1795032003.3780909,
+    "ast_hash": "1b0562a36d9d6ae71a216a2166029f9d",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/verify_proof.ps1": {
+    "mtime": 1795026878.8953846,
+    "seen": 1795032003.378092,
+    "ast_hash": "d363f09d81695d05302fc38f8270c922",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/verify_proof.py": {
+    "mtime": 1795200631.1587956,
+    "seen": 1795200721.9085732,
+    "ast_hash": "36e6b4275dd84596f2037b30339e87e8",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/pipeline/scheduler.py": {
+    "mtime": 1795199320.550366,
+    "seen": 1795200721.9091258,
+    "ast_hash": "74358e2113f74dcd14ee79b3e55ea390",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_audit_failure_modes.py": {
+    "mtime": 1794772916.5223355,
+    "seen": 1795032003.379899,
+    "ast_hash": "2f5a9466d6c5a876808a1e6e00feece5",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_delta.py": {
+    "mtime": 1795199359.100657,
+    "seen": 1795200721.9101493,
+    "ast_hash": "e53e4d45b4134bcbde4d43500fdd9834",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_freshqa.py": {
+    "mtime": 1795200003.1154363,
+    "seen": 1795200721.9103398,
+    "ast_hash": "6276c1899c7b03cdc18bc28567146767",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_guard.py": {
+    "mtime": 1795200311.5969532,
+    "seen": 1795200721.9105058,
+    "ast_hash": "43fc78589cdcde02bd3033f79c96842f",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_scheduler.py": {
+    "mtime": 1795031815.3449788,
+    "seen": 1795032003.380127,
+    "ast_hash": "2868464b85df994e497881f2924f3512",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/tests/test_shadow.py": {
+    "mtime": 1795200003.4168181,
+    "seen": 1795200721.9109998,
+    "ast_hash": "93dbcd431d179b8198652df17445f34e",
+    "semantic_hash": ""
+  },
+  "scripts/e2e_live": {
+    "mtime": 1794772916.5228572,
+    "seen": 1795032003.380261,
+    "ast_hash": "43811d98e9ce01d1231d64a20854fbb6",
+    "semantic_hash": ""
+  },
+  "scripts/e2e_live.ps1": {
+    "mtime": 1794772916.726756,
+    "seen": 1795032003.3802624,
+    "ast_hash": "4307fa20826065eeb9a81162b9a369a7",
+    "semantic_hash": ""
+  },
+  "scripts/freshqa_import": {
+    "mtime": 1795029708.6456988,
+    "seen": 1795032003.3802643,
+    "ast_hash": "19a5a2224942e143e614816e9fed2b74",
+    "semantic_hash": ""
+  },
+  "scripts/freshqa_import.ps1": {
+    "mtime": 1795029702.5564094,
+    "seen": 1795032003.3802652,
+    "ast_hash": "6704ebc16ac50973183e441da555cd47",
+    "semantic_hash": ""
+  },
+  "scripts/guard_eval": {
+    "mtime": 1795030677.493289,
+    "seen": 1795032003.380267,
+    "ast_hash": "0d3c6f51a83dc98a3ce08d21ce4725c9",
+    "semantic_hash": ""
+  },
+  "scripts/guard_eval.ps1": {
+    "mtime": 1795030672.445979,
+    "seen": 1795032003.3802683,
+    "ast_hash": "d8ffb734de5fce9e726fc4f9ecc3b4b5",
+    "semantic_hash": ""
+  },
+  "scripts/simulate_scheduler": {
+    "mtime": 1795031866.9739938,
+    "seen": 1795032003.3802693,
+    "ast_hash": "de9c87bc7cd3588175aafeeef3cd8486",
+    "semantic_hash": ""
+  },
+  "scripts/simulate_scheduler.ps1": {
+    "mtime": 1795031863.5636592,
+    "seen": 1795032003.3802702,
+    "ast_hash": "d447de4834627b78c2d49101a459be54",
+    "semantic_hash": ""
+  },
+  "scripts/verify-proof": {
+    "mtime": 1795032020.8074489,
+    "seen": 1795200721.9123392,
+    "ast_hash": "1d33032ea79433ce9041059de613934d",
+    "semantic_hash": ""
+  },
+  "scripts/verify-proof.ps1": {
+    "mtime": 1795032020.8431828,
+    "seen": 1795200721.912342,
+    "ast_hash": "ffab61048f31d5ced4cbeccf35be9e34",
+    "semantic_hash": ""
+  },
+  "docs/audit.md": {
+    "mtime": 1795200932.1525002,
+    "seen": 1795201454.8914435,
+    "ast_hash": "9ee8080ac1ad16ab4dfbe0215ec2838c",
+    "semantic_hash": ""
+  },
+  "docs/spikes.md": {
+    "mtime": 1794772895.1830719,
+    "seen": 1795032003.3819454,
+    "ast_hash": "2b6e9d18cbe06ecac66344d923c53c19",
+    "semantic_hash": ""
+  },
+  "docs/superpowers/plans/2026-11-19-feature-a-shadow-roi.md": {
+    "mtime": 1795028309.0536358,
+    "seen": 1795032003.3820548,
+    "ast_hash": "11e7657a2e329855d068044982f8b979",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/config.json": {
+    "mtime": 1795199809.5159357,
+    "seen": 1795200721.9023948,
+    "ast_hash": "dfeeab353a437ed1dc627cee790fa36a",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/config.replay.json": {
+    "mtime": 1795202150.6486995,
+    "seen": 1795202302.6228623,
+    "ast_hash": "aeef0fb759ddf23a6fe4783c4028aa0f",
+    "semantic_hash": ""
+  },
+  "chronoguard/bifrost/prepare.py": {
+    "mtime": 1795201266.5681663,
+    "seen": 1795201454.8789022,
+    "ast_hash": "7b19e4e1d560e16d3dac03a662e4e99e",
+    "semantic_hash": ""
+  },
+  "chronoguard/deploy/compose.replay.yml": {
+    "mtime": 1795200247.1249173,
+    "seen": 1795200721.905163,
+    "ast_hash": "3050630f7e854a801e69cd18d7cd1a40",
+    "semantic_hash": ""
+  },
+  "chronoguard/eval/dataset/release-replay.json": {
+    "mtime": 1795201693.6103017,
+    "seen": 1795202302.6262546,
+    "ast_hash": "bae25b33915f2486305add7a0e69d2e9",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/live_evidence.py": {
+    "mtime": 1795200298.7792947,
+    "seen": 1795200721.9076686,
+    "ast_hash": "c686136b77f889b3ab0061fedb1e4470",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/release_demo.py": {
+    "mtime": 1795202400.0717576,
+    "seen": 1795275075.7849486,
+    "ast_hash": "d6ece98102729e9d9fde1683b7064adc",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/release_fixture.py": {
+    "mtime": 1795202531.7482333,
+    "seen": 1795275075.784951,
+    "ast_hash": "bc428123f8325aa2f00795c9dcd507e4",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/app/release_replay.py": {
+    "mtime": 1795200129.353599,
+    "seen": 1795200721.9092977,
+    "ast_hash": "116caea2becec62cbdb5fad2b1a2e25a",
+    "semantic_hash": ""
+  },
+  "chronoguard/verifier/migrations/versions/0002_verification_metadata.py": {
+    "mtime": 1795199034.348521,
+    "seen": 1795200721.9097693,
+    "ast_hash": "6d992a5718901d7915635d53d096b47f",
+    "semantic_hash": ""
+  },
+  ".github/workflows/chronoguard-replay.yml": {
+    "mtime": 1795275029.9993892,
+    "seen": 1795275075.7759197,
+    "ast_hash": "b15b7cb6f930ed5128f72891ad8f9696",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/components/Chronometer.tsx": {
+    "mtime": 1795274907.6261451,
+    "seen": 1795275075.7789292,
+    "ast_hash": "07fac3cc8593f2c5c1b26950838cd5cc",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/src/components/clockScene.ts": {
+    "mtime": 1795274838.8027685,
+    "seen": 1795275075.7789314,
+    "ast_hash": "54f28dc3bbb39e3ee238b0d4e0a89b6f",
+    "semantic_hash": ""
+  },
+  "chronoguard/scripts/console_smoke.py": {
+    "mtime": 1795275771.3774347,
+    "seen": 1795275808.216278,
+    "ast_hash": "b0c588579e46387a9a8ba14f0df3c465",
+    "semantic_hash": ""
+  },
+  "chronoguard/deploy/compose.build-host-network.yml": {
+    "mtime": 1795275272.882504,
+    "seen": 1795275329.8008232,
+    "ast_hash": "7af0a8794e2c5b8b22e9a7f237869901",
+    "semantic_hash": ""
+  },
+  "chronoguard/console/package-lock.json": {
+    "mtime": 1795274080.4657426,
+    "seen": 1795275075.7959583,
+    "ast_hash": "f6d78c67d0c2d4805ada82a8536a9e53",
+    "semantic_hash": ""
+  }
+}
