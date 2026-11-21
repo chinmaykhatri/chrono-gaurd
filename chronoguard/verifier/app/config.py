@@ -48,7 +48,7 @@ class Settings(BaseSettings):
     def secure_configuration(self):
         if len(self.internal_key.get_secret_value()) < 32 or len(self.session_secret.get_secret_value()) < 32:
             raise ValueError("Internal and session secrets must each contain at least 32 characters")
-        if not self.admin_password_hash.get_secret_value().startswith("$argon2id$"):
+        if self.admin_password_hash.get_secret_value() and not self.admin_password_hash.get_secret_value().startswith("$argon2id$"):
             raise ValueError("Admin password must be an Argon2id hash")
         origin = urlsplit(self.console_origin)
         if origin.scheme not in ("http", "https") or not origin.netloc or origin.path not in ("", "/") or origin.query or origin.fragment or origin.username:

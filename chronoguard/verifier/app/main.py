@@ -13,6 +13,7 @@ import sqlalchemy as sa
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import Field
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -216,6 +217,13 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
                 await app.state.database.close()
 
     app = FastAPI(title="ChronoGuard Verifier", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r"^https?://.*$",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
     app.add_middleware(SecurityHeaders)
 
     @app.exception_handler(HTTPException)

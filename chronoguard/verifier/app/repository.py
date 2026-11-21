@@ -34,6 +34,10 @@ class Repository:
                 await self.event(tenant, kind, payload, session)
 
     async def seed(self, tenant):
+        try:
+            await self.database.init_tables()
+        except Exception:
+            pass
         async with self.database.sessions.begin() as session:
             try:
                 await session.execute(sa.text("ALTER TABLE requests ADD COLUMN IF NOT EXISTS decision_shadow VARCHAR(32)"))

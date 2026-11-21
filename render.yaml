@@ -1,0 +1,99 @@
+# ──────────────────────────────────────────────────────────────────
+# ChronoGuard – Render Blueprint (render.yaml)
+# Deploy with 1-click on Render: https://render.com
+# ──────────────────────────────────────────────────────────────────
+
+databases:
+  - name: chronoguard-db
+    plan: free
+    databaseName: chronoguard
+    user: chronoguard
+    postgresMajorVersion: "16"
+
+services:
+  # ── 1. Verifier Backend (Python FastAPI) ─────────────────────────
+  - type: web
+    name: chronoguard-verifier
+    runtime: docker
+    plan: free
+    region: oregon
+    rootDir: chronoguard
+    dockerfilePath: verifier/Dockerfile
+    dockerContext: .
+    healthCheckPath: /readyz
+    envVars:
+      - key: CG_ENVIRONMENT
+        value: development
+      - key: CG_CONSOLE_ORIGIN
+        value: https://chronoguard-console.onrender.com
+      - key: CG_DATABASE_URL
+        fromDatabase:
+          name: chronoguard-db
+          property: connectionString
+      - key: CG_REDIS_URL
+        sync: false
+      - key: CG_INTERNAL_KEY
+        generateValue: true
+      - key: CG_SESSION_SECRET
+        generateValue: true
+      - key: CG_ADMIN_PASSWORD_HASH
+        value: ""
+      - key: CG_EXTRACTOR_MODEL
+        value: openai/gpt-4o-mini
+      - key: CG_JUDGE_MODEL
+        value: openai/gpt-4o-mini
+      - key: CG_ALLOW_SIMULATED_CLOCK
+        value: "true"
+      - key: CG_STORE_CONTENT
+        value: "false"
+      - key: CG_GUARD_ENABLED
+        value: "false"
+      - key: CG_SHADOW_ENABLED
+        value: "false"
+      - key: CG_DELTA_ENABLED
+        value: "false"
+      - key: CG_SCHEDULER_MODE
+        value: standard
+      - key: CG_SCHEDULER_BUDGET_CHECKS_PER_HOUR
+        value: "100"
+      - key: CG_TAVILY_CREDITS_PER_HOUR
+        value: "300"
+      - key: CG_LLM_TOKENS_PER_HOUR
+        value: "400000"
+      - key: CG_RETENTION_DAYS
+        value: "7"
+      - key: CG_SOURCE_AUTHORITIES
+        value: '{"go.dev":1,"nodejs.org":1,"react.dev":1,"python.org":1,"www.python.org":1}'
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+
+  # ── 2. Console Frontend (React + Vite Web App) ──────────────────
+  - type: web
+    name: chronoguard-console
+    runtime: static
+    plan: free
+    region: oregon
+    rootDir: chronoguard/console
+    buildCommand: npm ci --ignore-scripts --no-audit --no-fund && npm run build
+    staticPublishPath: dist
+    headers:
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: X-Frame-Options
+        value: DENY
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_BASE_URL
+        value: https://chronoguard-verifier.onrender.com
+      - key: NODE_VERSION
+        value: "22"

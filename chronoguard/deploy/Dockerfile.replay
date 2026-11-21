@@ -1,0 +1,7 @@
+FROM python:3.12-slim
+WORKDIR /replay
+COPY scripts/release_fixture.py scripts/release_fixture.py
+COPY eval/dataset/release-replay.json eval/dataset/release-replay.json
+ENV CG_REPLAY_HOST=0.0.0.0
+EXPOSE 8099
+CMD ["python", "scripts/release_fixture.py"]
