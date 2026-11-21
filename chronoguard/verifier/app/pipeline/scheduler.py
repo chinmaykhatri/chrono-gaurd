@@ -74,8 +74,8 @@ def solve_lagrangian_budget(
     min sum_i w_i * (1 - F(lambda_i, I_i))
     subject to sum_i (1 / I_i) <= B, where w_i = hits_i / sum hits.
 
-    Optimal unconstrained I_i* is proportional to 1 / sqrt(w_i * lambda_i).
-    Clamped within [min_interval_s, max_interval_s] for each volatility class.
+    Solve the concave objective over refresh rates with a common price
+    for each budget unit. A fact may consume multiple units per check.
     """
     if not facts:
         return []
@@ -85,94 +85,70 @@ def solve_lagrangian_budget(
     n = len(facts)
 
     total_hits = sum(max(f.get("query_hits", 0), 0) for f in facts)
-    use_uniform_weights = (total_hits == 0)
-
-    prepared: list[dict[str, Any]] = []
-    for f in facts:
-        cat_str = str(f.get("class_key", "slow_facts"))
+    prepared = []
+    for fact in facts:
         try:
-            cat_enum = Category(cat_str)
+            category = Category(fact.get("class_key", Category.SLOW))
         except ValueError:
-            cat_enum = Category.SLOW
+            category = Category.SLOW
+        _, _, minimum, maximum, _ = CLASSES[category]
+        lam = float(fact.get("lambda_hat") or default_lambda_for_class(category))
+        weight = (max(fact.get("query_hits", 0), 0) + 1) / (total_hits + n)
+        cost = max(float(fact.get("credits_per_check", 1)), 1e-9)
+        prepared.append((fact, lam, weight, cost, 1 / (maximum or 30 * DAY), 1 / (minimum or 3600)))
 
-        entry = CLASSES.get(cat_enum, CLASSES[Category.SLOW])
-        _, _, c_min, c_max, _ = entry
+    def marginal(lam, weight, rate):
+        x = lam / rate
+        if x < 1e-4:
+            return weight / lam * (x * x / 2 - x * x * x / 3)
+        return weight / lam * (-math.expm1(-x) - x * math.exp(-x))
 
-        # Fallback interval bounds if unconstrained
-        min_int = float(c_min or 3600)
-        max_int = float(c_max or (30 * DAY))
-
-        lam = float(f.get("lambda_hat") or 0.0)
-        if lam <= 0.0:
-            lam = default_lambda_for_class(cat_enum)
-
-        if use_uniform_weights:
-            w = 1.0 / n
-        else:
-            raw_hits = max(f.get("query_hits", 0), 0)
-            # Add Laplace +1 to avoid zero-weight starving
-            w = (raw_hits + 1.0) / (total_hits + n)
-
-        # Base proportionality factor k_i = 1 / sqrt(w_i * lambda_i)
-        k_i = 1.0 / math.sqrt(max(w * lam, 1e-12))
-
-        prepared.append({
-            "fact": f,
-            "lambda": lam,
-            "weight": w,
-            "min_int": min_int,
-            "max_int": max_int,
-            "k_i": k_i,
-        })
-
-    # Initial analytic scaling factor mu_0 = (1 / B) * sum(1 / k_i)
-    sum_inv_k = sum(1.0 / p["k_i"] for p in prepared)
-    mu_0 = sum_inv_k / B
-
-    def total_rate(mu: float) -> float:
-        rate = 0.0
-        for p in prepared:
-            interval = max(p["min_int"], min(p["max_int"], mu * p["k_i"]))
-            rate += 1.0 / interval
-        return rate
-
-    # Check boundaries
-    min_rate_possible = sum(1.0 / p["max_int"] for p in prepared)
-    max_rate_possible = sum(1.0 / p["min_int"] for p in prepared)
-
-    if B <= min_rate_possible:
-        # Budget is so tiny everyone gets max_int
-        mu_star = mu_0 * 100.0
-    elif B >= max_rate_possible:
-        # Budget is so huge everyone gets min_int
-        mu_star = mu_0 * 0.01
-    else:
-        # Binary search for mu in [1e-6 * mu_0, 1e6 * mu_0]
-        low = mu_0 * 1e-5
-        high = mu_0 * 1e5
-        for _ in range(50):
-            mid = (low + high) / 2.0
-            r = total_rate(mid)
-            if r > B:
-                # Rate is too high -> need longer intervals -> increase mu
+    def rate_at(fact, price):
+        _, lam, weight, cost, low, high = fact
+        target = price * cost
+        if marginal(lam, weight, low) <= target:
+            return low
+        if marginal(lam, weight, high) >= target:
+            return high
+        for _ in range(28):
+            mid = (low + high) / 2
+            if marginal(lam, weight, mid) > target:
                 low = mid
             else:
                 high = mid
-        mu_star = (low + high) / 2.0
+        return low
+
+    minimum_rate = sum(cost * low for _, _, _, cost, low, _ in prepared)
+    maximum_rate = sum(cost * high for _, _, _, cost, _, high in prepared)
+    affordable = B >= minimum_rate
+    if not affordable:
+        rates = [item[4] for item in prepared]
+    elif B >= maximum_rate:
+        rates = [item[5] for item in prepared]
+    else:
+        lower = 0.0
+        upper = max(marginal(lam, weight, low) / cost for _, lam, weight, cost, low, _ in prepared)
+        for _ in range(40):
+            price = (lower + upper) / 2
+            spend = sum(fact[3] * rate_at(fact, price) for fact in prepared)
+            if spend > B:
+                lower = price
+            else:
+                upper = price
+        rates = [rate_at(item, upper) for item in prepared]
 
     results = []
-    for p in prepared:
-        opt_interval = int(round(max(p["min_int"], min(p["max_int"], mu_star * p["k_i"]))))
-        f = p["fact"]
-        est_days = round(1.0 / (p["lambda"] * DAY), 1)
+    for item, rate in zip(prepared, rates, strict=True):
+        fact, lam, _, _, _, _ = item
+        interval = math.ceil(1 / rate - 1e-9)
         results.append({
-            **f,
-            "lambda_hat": round(p["lambda"], 8),
-            "est_change_days": est_days,
-            "optimal_interval_s": opt_interval,
-            "freshness_expected": round(freshness_metric(p["lambda"], opt_interval), 4),
+            **fact,
+            "lambda_hat": lam,
+            "est_change_days": round(1.0 / (lam * DAY), 1),
+            "optimal_interval_s": interval,
+            "freshness_expected": round(freshness_metric(lam, interval), 4),
+            "budget_feasible": affordable,
         })
-
     return results
 
 
