@@ -13,7 +13,7 @@ def test_freshqa_dataset_structure():
 
     assert data["id"] == "freshqa-100"
     assert data["license"] == "Apache-2.0"
-    assert data["provenance"] == "external_benchmark"
+    assert data["provenance"] == "curated_fixture"
     items = data["items"]
     assert len(items) == 100
 
@@ -30,8 +30,8 @@ def test_freshqa_dataset_structure():
         assert "claim_text" in item
         assert "fact_key" in item
         assert item["label"] in ("outdated", "current")
-        assert item["provenance"] == "external_benchmark"
-        assert item["label_method"] == "llm_match"
+        assert item["provenance"] == "curated_fixture"
+        assert item["label_method"] == "fixture_labels"
 
 
 def test_eval_service_freshqa_integration():
@@ -43,36 +43,12 @@ def test_eval_service_freshqa_integration():
     ds = svc.get_dataset("freshqa-100")
     assert ds is not None
     assert ds["item_count"] == 100
-    assert ds["provenance"] == "external_benchmark"
+    assert ds["provenance"] == "curated_fixture"
 
 
-def test_freshqa_run_and_metrics():
+def test_unmeasured_fixture_does_not_publish_metrics():
     svc = EvalService()
-    run = svc.create_run(
-        dataset_id="freshqa-100",
-        variants=["B0", "B2", "B3", "CG_full"],
-        model="gpt-4o",
-        run_id="test-freshqa-run",
-    )
-    assert run["status"] == "complete"
-    assert run["dataset_id"] == "freshqa-100"
 
-    report = run["report"]
-    assert "metrics" in report
-    assert "variants" in report
-    assert "per_fact_type" in report
-
-    # Check that variants include B0, B2, B3, CG_full
-    v_names = [v["variant"] for v in report["variants"]]
-    assert any("B0" in name for name in v_names)
-    assert any("B2" in name for name in v_names)
-    assert any("B3" in name for name in v_names)
-    assert any("ChronoGuard Full" in name for name in v_names)
-
-    # Check per_fact_type breakdown
-    pft = report["per_fact_type"]
-    assert len(pft) == 3
-    types = [t["fact_type"] for t in pft]
-    assert "fast_changing" in types
-    assert "slow_changing" in types
-    assert "never_changing" in types
+    with pytest.raises(ValueError, match="does not have a runnable replay"):
+        svc.create_run("freshqa-100")
+    assert svc.list_runs() == []
