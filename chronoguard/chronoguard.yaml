@@ -1,5 +1,5 @@
-# ChronoGuard main configuration
-# Loaded by the verifier at startup and referenced by the Go plugins.
+# ChronoGuard design reference. Runtime settings use the CG_* variables
+# wired through docker-compose.yml, app/config.py and the Go runtime.
 
 chronoguard:
   enabled: true
