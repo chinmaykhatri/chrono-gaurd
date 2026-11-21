@@ -43,5 +43,6 @@ Desktop.ini
 .upstream/
 chronoguard/eval/reports/local/
 *.db
+graphify-out/cache/
 .hallmark/
 .freebuff/
