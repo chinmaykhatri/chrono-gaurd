@@ -37,7 +37,10 @@ class FakeModels:
 
     async def judge(self, claim, evidence):
         self.judge_calls += 1
-        return self.verdict, {"input_tokens": 50, "output_tokens": 15}
+        verdict = self.verdict
+        if verdict.verdict == "outdated" and evidence:
+            verdict = verdict.model_copy(update={"contradict_ids": [evidence[0].id]})
+        return verdict, {"input_tokens": 50, "output_tokens": 15}
 
 
 class FakeTavily:
@@ -62,9 +65,16 @@ class FakeBuckets:
     async def take(self, tenant, bucket, amount):
         return True
 
+    async def refund(self, tenant, bucket, amount):
+        return True
+
 
 @pytest.fixture
-async def setup_verifier(tmp_path):
+async def setup_verifier(tmp_path, monkeypatch):
+    async def public_test_host(self, host):
+        return host == "nodejs.org"
+
+    monkeypatch.setattr(Verifier, "_resolve_public", public_test_host)
     database = db.Database(f"sqlite+aiosqlite:///{tmp_path / 'verifier_delta.db'}")
     async with database.engine.begin() as connection:
         await connection.run_sync(db.metadata.create_all)
@@ -80,6 +90,8 @@ async def setup_verifier(tmp_path):
         console_origin="http://localhost:3000",
         tenant_id="default",
         delta_enabled=True,
+        delta_source_urls=["https://nodejs.org/en/about/releases"],
+        source_authorities={"nodejs.org": 1},
     )
     now = datetime(2026, 11, 19, 12, 0, 0, tzinfo=timezone.utc)
     clock = FakeClock(now)
@@ -108,17 +120,19 @@ async def test_delta_revalidation_304(setup_verifier):
             "current_value": "22",
             "last_verdict": "confirmed",
             "fresh_until": "2026-11-19T10:00:00Z",  # Expired 2 hours ago
-            "freshness": "0.95",
+            "freshness": "95",
             "support_confidence": "0.98",
             "verified_at": "2026-11-18T10:00:00Z",
             "interval_s": "3600",
             "source_urls": json.dumps([target_url]),
             "source_text_hash": orig_hash,
+            "source_etag": '"fixture-v1"',
             "evidence": "[]",
         },
     )
 
     def handle_request(request: httpx.Request) -> httpx.Response:
+        assert request.headers["if-none-match"] == '"fixture-v1"'
         return httpx.Response(304)
 
     mock_client = httpx.AsyncClient(transport=httpx.MockTransport(handle_request))
@@ -169,12 +183,13 @@ async def test_delta_revalidation_hash_match(setup_verifier):
             "current_value": "22",
             "last_verdict": "confirmed",
             "fresh_until": "2026-11-19T10:00:00Z",
-            "freshness": "0.95",
+            "freshness": "95",
             "support_confidence": "0.98",
             "verified_at": "2026-11-18T10:00:00Z",
             "interval_s": "3600",
             "source_urls": json.dumps([target_url]),
             "source_text_hash": orig_hash,
+            "source_etag": '"fixture-v1"',
             "evidence": "[]",
         },
     )
@@ -230,12 +245,13 @@ async def test_delta_revalidation_text_changed(setup_verifier):
             "current_value": "22",
             "last_verdict": "confirmed",
             "fresh_until": "2026-11-19T10:00:00Z",
-            "freshness": "0.95",
+            "freshness": "95",
             "support_confidence": "0.98",
             "verified_at": "2026-11-18T10:00:00Z",
             "interval_s": "3600",
             "source_urls": json.dumps([target_url]),
             "source_text_hash": orig_hash,
+            "source_etag": '"fixture-v1"',
             "evidence": "[]",
         },
     )
@@ -293,12 +309,13 @@ async def test_delta_revalidation_404_fallback(setup_verifier):
             "current_value": "22",
             "last_verdict": "confirmed",
             "fresh_until": "2026-11-19T10:00:00Z",
-            "freshness": "0.95",
+            "freshness": "95",
             "support_confidence": "0.98",
             "verified_at": "2026-11-18T10:00:00Z",
             "interval_s": "3600",
             "source_urls": json.dumps([target_url]),
             "source_text_hash": orig_hash,
+            "source_etag": '"fixture-v1"',
             "evidence": "[]",
         },
     )
