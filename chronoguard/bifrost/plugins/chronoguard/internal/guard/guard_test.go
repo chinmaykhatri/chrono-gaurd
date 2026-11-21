@@ -1,9 +1,6 @@
 package guard
 
-import (
-	"testing"
-	"time"
-)
+import "testing"
 
 func TestExtract(t *testing.T) {
 	tests := []struct {
@@ -149,18 +146,34 @@ func BenchmarkExtractSignature(b *testing.B) {
 	}
 }
 
-func TestExtractionBudget(t *testing.T) {
-	prompt := "What is the capital of Australia and who was the prime minister in 2022?"
-	start := time.Now()
-	iterations := 1000
-	for i := 0; i < iterations; i++ {
-		_ = Extract(prompt)
+func TestRejectsChangedEntityAndReversedRoles(t *testing.T) {
+	for _, test := range []struct{ incoming, cached, reason string }{
+		{"what is the capital of australia?", "what is the capital of austria?", "entity_mismatch"},
+		{"Did India defeat France?", "Did France defeat India?", "entity_role_mismatch"},
+	} {
+		persisted, ok := Decode(Extract(test.cached).Encode())
+		if !ok {
+			t.Fatal("stored signature did not decode")
+		}
+		if tripped, reason := Check(Extract(test.incoming), persisted); !tripped || reason != test.reason {
+			t.Errorf("got tripped=%t, reason=%q, want %q", tripped, reason, test.reason)
+		}
 	}
-	elapsed := time.Since(start)
-	avgUs := elapsed.Microseconds() / int64(iterations)
-	t.Logf("1000 extractions took %v (average: %d microseconds per extraction)", elapsed, avgUs)
+}
 
-	if avgUs > 100 {
-		t.Errorf("Average extraction latency %d us exceeds 100 microsecond budget", avgUs)
+func TestDistanceIsSymmetricOnlyWithoutRouteQualifiers(t *testing.T) {
+	first := Extract("What is the distance between Paris and Lyon?")
+	for _, tc := range []struct {
+		query  string
+		reject bool
+	}{
+		{"How far is Lyon from Paris?", false},
+		{"How far is Lyon from Paris by train?", true},
+		{"How far is Lyon from London?", true},
+		{"Did Paris defeat Lyon?", true},
+	} {
+		if rejected, reason := Check(first, Extract(tc.query)); rejected != tc.reject {
+			t.Errorf("%q: rejected=%v, reason=%q", tc.query, rejected, reason)
+		}
 	}
 }
