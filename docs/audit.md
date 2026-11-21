@@ -1,5 +1,7 @@
 # ChronoGuard Engineering Audit & Verification Report (STEP 0)
 
+This audit describes an earlier prototype. Current test commands, replay scope, and runtime behavior are in the [application README](../chronoguard/README.md) and [benchmark methodology](../chronoguard/docs/benchmark.md).
+
 > Generated: 2026-11-16T00:57:00Z  
 > Environment: Windows x64, Docker Desktop (PostgreSQL 16, Redis 7, Weaviate 1.32)  
 > Scope: Empirical verification of claims, gateway lifecycle, failure modes, and provenance integrity.
