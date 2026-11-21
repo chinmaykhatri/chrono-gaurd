@@ -1,96 +1,38 @@
-# ChronoGuard Architecture Specification
+# ChronoGuard architecture
 
-ChronoGuard is a freshness-aware reliability layer built for the **Bifrost AI Gateway** (by Maxim AI) and **Tavily AI**.
+ChronoGuard owns delivery decisions for non-streamed text chat at the Bifrost gateway. The verifier owns claim and evidence state. The console is a client of those decisions.
 
-```
-                +-------------------------------------------------------------+
-                |                    Bifrost Gateway Core                     |
-                |                                                             |
-Request ------> |  [cg-front (Pre)]  -->  [semantic_cache]  -->  [cg-back]    | ------> Provider LLM
-                |         |                       |                   |       |
-                |         | (Hit / Miss State)    | (Cached Entry)    | (Grounding)
-                |         v                       v                   v       |
-Response <----- |  [cg-front (Post)] <--  [semantic_cache]  <--  [cg-back]    | <------ Provider Answer
-                +-------------------------------------------------------------+
-                               |                            ^
-                  (Async Ingest / Verify)             (Regen Loopback)
-                               v                            |
-                +-------------------------------------------------------------+
-                |                  ChronoGuard Verifier                       |
-                |                                                             |
-                |  - Volatility Classification   - Two-Key Evidence Judge     |
-                |  - Tavily Search & Extract     - Grounded Prompt Synthesizer|
-                |  - Freshness Calibration       - Cascade Invalidation       |
-                +-------------------------------------------------------------+
-                               |                            |
-                               v                            v
-                        [PostgreSQL 16]                 [Redis 7]
-                        (Audit of Truth)            (Hot Path Cache)
+```mermaid
+flowchart LR
+    Client --> Gateway[Bifrost and ChronoGuard]
+    Gateway --> Cache[Weaviate semantic cache]
+    Gateway --> Provider[Model provider]
+    Gateway --> Verifier[FastAPI verifier]
+    Gateway --> Redis[Redis manifest and policy state]
+    Verifier --> Evidence[Tavily or controlled fixture]
+    Verifier --> Redis
+    Verifier --> Database[PostgreSQL audit state]
+    Console --> Verifier
 ```
 
----
+## Cache lifecycle
 
-## 1. Plugin Sandwich Pattern in Bifrost
+Bifrost runs ChronoGuard's front hook before semantic cache lookup and after completion. The hook reads Bifrost's cache lookup outcome and matches the returned text digest to the manifest. A valid fresh hit bypasses factual verification. For a due hit, the verifier checks due claims and writes updated manifest revisions. If a known-stale answer needs regeneration, the verifier invokes the pinned gateway's exact cache deletion API and sends a cache-disabled chat request with the original conversation and evidence. It verifies the generated claims before returning replacement text to the front hook. The internal retry stays outside the cache. The next ordinary request follows the normal cache-miss flow.
 
-Bifrost plugin hooks run **forward on the way in** and **in reverse on the way out**:
+Tenant-scoped reverse indexes connect a fact to all affected cache entries. A changed fact marks affected manifests stale, including entries that have yet to receive another request. A Redis watch-and-set prevents concurrent revalidation and cascade writes from silently overwriting a changed manifest. PostgreSQL keeps the audit view and revision. Evidence and prompt identity are checked before a verdict is reused.
 
-1. **`cg-front` Pre-Hook**:
-   - Inspects caller headers (`x-cg-policy`, `x-cg-mode`).
-   - Classifies user prompt into one of 8 volatility classes using zero-network token heuristics.
-   - Sets `x-bf-cache-ttl` to the class hard TTL (e.g. 7 days for software versions, bypass for realtime).
-   - Stamps request state (`request_id`, `policy`, `class`).
+## Decisions and tradeoffs
 
-2. **`semantic_cache` (Bifrost Built-in)**:
-   - Performs embedding lookup. If a vector match exceeds similarity threshold, marks cache hit.
+- **Strict** holds verification-sensitive text until a successful result. It rejects unsupported stream requests before emitting answer tokens.
+- **Standard** can return eligible annotated uncertainty or serve while a due check is queued. It withholds known-stale text when replacement verification fails.
+- **Shadow** observes available manifest state and records a hypothetical decision without running a mutating revalidation. An authorized operator may opt a local request into shadow mode.
+- **Guard** compares typed signatures for the incoming query and cached candidate. If it rejects the candidate, the gateway waits for a cache-disabled completion for the incoming request.
+- **Delta** is opt-in for administrator-approved authoritative HTTPS URLs. It binds conditional validators to a previously accepted source representation, preserves authority, and falls back to Tavily when evidence is inconclusive.
+- **Refresh allocation** is an opt-in due-on-access policy. It allocates refresh rates over a bounded group of recent facts using estimated volatility, traffic and source cost. It does not run a background refresh dispatcher.
 
-3. **`cg-back` Pre-Hook**:
-   - If `x-cg-ground-id` is present (from a ChronoGuard regeneration loop), loads evidence from Redis and prepends a system instruction grounding the model in verified reality.
+The checked-in Bifrost integration is pinned by `bifrost/upstream.lock`. Compose exposes the console and public chat endpoints on a loopback proxy. Cache administration and internal verifier routes stay on the private container network.
 
-4. **Model Provider**:
-   - Executes completion if cache missed.
+## Evidence and claims
 
-5. **`cg-back` Post-Hook**:
-   - Tags origin (`provider` vs `regenerated`). Runs before `semantic_cache` writes the entry.
-
-6. **`cg-front` Post-Hook**:
-   - Runs **last** on the way out:
-     - **On Cache Hit**: Loads manifest from Redis (`cg:manifest:{cache_id}`). If `now < best_before`, immediately serves (`p95 < 2.8 ms`). If expired, triggers revalidation or regeneration according to policy.
-     - **On Cache Miss**: Initiates synchronous inline verification (under `strict` policy) or non-blocking asynchronous ingestion (`standard`/`lenient`).
-
----
-
-## 2. Redis Hot-Path Namespace
-
-| Key Pattern | Data Structure | TTL | Purpose |
-|---|---|---|---|
-| `cg:manifest:{cache_id}` | JSON string | Hard Expiry + 1d | Claim manifest with claim list, statuses, and `best_before` |
-| `cg:fact:{fact_hash}` | Hash | Variable | Fact ledger: `current_value`, `last_verdict`, `fresh_until` |
-| `cg:sf:{fact_hash}` | String (Token) | 30s | Singleflight lock to deduplicate concurrent verifications |
-| `cg:rv:{fact_hash}` | String | 60s | Revalidation deduplication flag |
-| `cg:ground:{ground_id}` | JSON string | 600s | Grounding bundle passed to `cg-back` during regeneration |
-| `cg:clock` | Hash | Persistent | Simulated clock state (`mode`, `offset_seconds`, `frozen_at`) |
-| `cg:events` | Pub/Sub | N/A | Real-time event notifications delivered to React Console SSE |
-
----
-
-## 3. Freshness Scoring Formula
-
-For claim $i$ with category half-life $t_{1/2}$ and evidence $E$:
-
-$$z = -1.0 + \beta_{\text{verdict}} + 1.5 \cdot \alpha_{\text{auth}} + 0.8 \cdot \rho_{\text{recency}} + 0.8 \cdot \gamma_{\text{agree}} - 2.0 \cdot \chi_{\text{contra}} + 0.4 \cdot \text{logit}(1 - p_{\text{stale}})$$
-
-Where:
-- $\beta_{\text{verdict}} \in \{+2.5\text{ (confirmed)}, -2.0\text{ (outdated)}, -2.5\text{ (contradicted)}\}$
-- $\alpha_{\text{auth}} = \max_{e \in E_{\text{support}}} \text{TierWeight}(e) \in \{1.0, 0.7, 0.4, 0.2\}$
-- $\rho_{\text{recency}} = 2^{-\Delta t / t_{1/2}}$ based on published date of evidence
-- $\text{Freshness} = \frac{100}{1 + e^{-z}} \in [0, 100]$
-
----
-
-## 4. The Two-Key Evidence Rule
-
-A cache entry is **never evicted** and text is **never rewritten** unless contradictory evidence meets at least one of three non-negotiable criteria:
-1. **Tier 1 Official Contradiction**: Direct contradiction from the entity's official documentation or primary registry domain.
-2. **Dual-Source Tier 2 Corroboration**: Contradiction confirmed by at least two distinct independent Tier 2 domains.
-3. **High-Confidence Verbatim Match**: Judge model confidence $\ge 90\%$ where the corrected value appears verbatim in an authoritative snippet.
+Source authority and a claim-specific contradiction gate cache invalidation. Evidence that contradicts the old value still requires a positive check of the newly generated value. Claim freshness is a decision score. Verified source metadata, provider calls, and search credits support an audit. Calibration and live predictive performance require a separate measured study.
 
