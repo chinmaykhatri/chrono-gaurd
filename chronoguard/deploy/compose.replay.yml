@@ -1,0 +1,28 @@
+services:
+  replay:
+    image: python:3.12-slim
+    working_dir: /replay
+    command: ["python", "scripts/release_fixture.py"]
+    environment:
+      CG_REPLAY_HOST: 0.0.0.0
+    volumes:
+      - ./scripts/release_fixture.py:/replay/scripts/release_fixture.py:ro
+      - ./eval/dataset/release-replay.json:/replay/eval/dataset/release-replay.json:ro
+    ports:
+      - "127.0.0.1:8099:8099"
+  bifrost:
+    environment:
+      OPENAI_API_KEY: replay-local
+      CG_ALLOW_SIMULATED_CLOCK: "true"
+      CG_ALLOW_SHADOW_HEADER: "true"
+    volumes:
+      - ./bifrost/config.replay.json:/etc/bifrost/config.json:ro
+    depends_on:
+      replay:
+        condition: service_started
+  verifier:
+    environment:
+      CG_ENVIRONMENT: development
+      CG_ALLOW_SIMULATED_CLOCK: "true"
+      CG_TAVILY_BASE_URL: http://replay:8099
+      TAVILY_API_KEY: replay-local
