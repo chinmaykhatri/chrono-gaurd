@@ -1,0 +1,172 @@
+diff --git a/framework/logstore/tables.go b/framework/logstore/tables.go
+index 750dd55..bc390fa 100644
+--- a/framework/logstore/tables.go
++++ b/framework/logstore/tables.go
+@@ -1769,22 +1769,24 @@ type AgentLogOperation struct {
+ 
+ func NewAgentLogDetail(entry *AgentLog) AgentLogDetail {
+ 	return AgentLogDetail{
+-		ID: entry.ID, Timestamp: entry.Timestamp, RecordKind: entry.RecordKind, Operation: entry.Operation,
+-		Status: entry.Status, AgentName: entry.AgentName,
+-		UserID: entry.UserID, UserName: entry.UserName, VirtualKeyID: entry.VirtualKeyID, VirtualKeyName: entry.VirtualKeyName,
+-		TeamID: entry.TeamID, TeamName: entry.TeamName, TeamIDs: entry.TeamIDsParsed, TeamNames: entry.TeamNamesParsed,
+-		CustomerID: entry.CustomerID, CustomerName: entry.CustomerName, CustomerIDs: entry.CustomerIDsParsed, CustomerNames: entry.CustomerNamesParsed,
+-		BusinessUnitID: entry.BusinessUnitID, BusinessUnitName: entry.BusinessUnitName, BusinessUnitIDs: entry.BusinessUnitIDsParsed, BusinessUnitNames: entry.BusinessUnitNamesParsed,
+-		ProjectID: entry.ProjectID, ProjectName: entry.ProjectName, BudgetIDs: entry.BudgetIDsParsed, RateLimitIDs: entry.RateLimitIDsParsed,
+-		RequestID: entry.RequestID, TraceID: entry.TraceID, TaskID: entry.TaskID, ContextID: entry.ContextID,
+-		MessageID: entry.MessageID, RequestMessageID: entry.RequestMessageID, ResponseMessageID: entry.ResponseMessageID,
+-		ArtifactID: entry.ArtifactID, PushConfigID: entry.PushConfigID, DeliveryID: entry.DeliveryID, AttemptID: entry.AttemptID,
+-		CallerCorrelationID: entry.CallerCorrelationID,
+-		EventSequence:       entry.EventSequence, EventType: entry.EventType, TaskState: entry.TaskState,
+-		DownstreamTransport: entry.DownstreamTransport, UpstreamTransport: entry.UpstreamTransport,
+-		Latency: entry.Latency, UpstreamLatency: entry.UpstreamLatency, OverheadLatency: entry.OverheadLatency,
+-		OverheadBreakdown: entry.OverheadBreakdownParsed,
+-		ContentType:       entry.ContentType, Input: entry.RequestBody,
++		AgentLogSummary: AgentLogSummary{
++			ID: entry.ID, Timestamp: entry.Timestamp, RecordKind: entry.RecordKind, Operation: entry.Operation,
++			Status: entry.Status, AgentName: entry.AgentName,
++			UserID: entry.UserID, UserName: entry.UserName, VirtualKeyID: entry.VirtualKeyID, VirtualKeyName: entry.VirtualKeyName,
++			TeamID: entry.TeamID, TeamName: entry.TeamName, TeamIDs: entry.TeamIDsParsed, TeamNames: entry.TeamNamesParsed,
++			CustomerID: entry.CustomerID, CustomerName: entry.CustomerName, CustomerIDs: entry.CustomerIDsParsed, CustomerNames: entry.CustomerNamesParsed,
++			BusinessUnitID: entry.BusinessUnitID, BusinessUnitName: entry.BusinessUnitName, BusinessUnitIDs: entry.BusinessUnitIDsParsed, BusinessUnitNames: entry.BusinessUnitNamesParsed,
++			ProjectID: entry.ProjectID, ProjectName: entry.ProjectName, BudgetIDs: entry.BudgetIDsParsed, RateLimitIDs: entry.RateLimitIDsParsed,
++			RequestID: entry.RequestID, TraceID: entry.TraceID, TaskID: entry.TaskID, ContextID: entry.ContextID,
++			MessageID: entry.MessageID, RequestMessageID: entry.RequestMessageID, ResponseMessageID: entry.ResponseMessageID,
++			ArtifactID: entry.ArtifactID, PushConfigID: entry.PushConfigID, DeliveryID: entry.DeliveryID, AttemptID: entry.AttemptID,
++			CallerCorrelationID: entry.CallerCorrelationID,
++			EventSequence:       entry.EventSequence, EventType: entry.EventType, TaskState: entry.TaskState,
++			DownstreamTransport: entry.DownstreamTransport, UpstreamTransport: entry.UpstreamTransport,
++			Latency: entry.Latency, UpstreamLatency: entry.UpstreamLatency, OverheadLatency: entry.OverheadLatency,
++			OverheadBreakdown: entry.OverheadBreakdownParsed,
++			ContentType:       entry.ContentType, Input: entry.RequestBody,
++		},
+ 		RawRequest: entry.RawRequest, RawResponse: entry.RawResponse,
+ 		RequestBody: entry.RequestBody, ResponseBody: entry.ResponseBody, EventBody: entry.EventBody,
+ 		PluginLogs: entry.PluginLogs, ErrorDetails: entry.ErrorDetailsParsed,
+diff --git a/plugins/semanticcache/main.go b/plugins/semanticcache/main.go
+index 2d45fe3..cf9c9ff 100644
+--- a/plugins/semanticcache/main.go
++++ b/plugins/semanticcache/main.go
+@@ -376,6 +376,9 @@ func (plugin *Plugin) PreRequestHook(_ *schemas.BifrostContext, _ *schemas.Bifro
+ // state on the plugin keyed by request ID for PostLLMHook to consume when
+ // the upstream response arrives.
+ func (plugin *Plugin) PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
++	if disabled, _ := ctx.Value(schemas.BifrostContextKey("chronoguard.cache-disabled")).(bool); disabled {
++		return req, nil, nil
++	}
+ 	cacheKey, ok := plugin.resolveCacheKey(ctx)
+ 	if !ok {
+ 		return req, nil, nil
+diff --git a/transports/bifrost-http/lib/config.go b/transports/bifrost-http/lib/config.go
+index 66a94a6..7793169 100644
+--- a/transports/bifrost-http/lib/config.go
++++ b/transports/bifrost-http/lib/config.go
+@@ -148,7 +148,9 @@ var builtinPluginNames = []string{
+ 	logging.PluginName,
+ 	governance.PluginName,
+ 	otel.PluginName,
++	"cg-front",
+ 	semanticcache.PluginName,
++	"cg-back",
+ 	compat.PluginName,
+ 	maxim.PluginName,
+ 	routing.PluginName,
+diff --git a/transports/bifrost-http/server/plugins.go b/transports/bifrost-http/server/plugins.go
+index 408705c..81218cf 100644
+--- a/transports/bifrost-http/server/plugins.go
++++ b/transports/bifrost-http/server/plugins.go
+@@ -2,10 +2,13 @@ package server
+ 
+ import (
+ 	"context"
++	"encoding/json"
+ 	"fmt"
+ 	"math"
+ 	"slices"
+ 
++	cgBack "github.com/chronoguard/chronoguard/back"
++	cgFront "github.com/chronoguard/chronoguard/front"
+ 	"github.com/maximhq/bifrost/core/schemas"
+ 	"github.com/maximhq/bifrost/plugins/compat"
+ 	"github.com/maximhq/bifrost/plugins/governance"
+@@ -203,6 +206,14 @@ func loadBuiltinPlugin(ctx context.Context, name string, pluginConfig any, bifro
+ 	case modelcatalogresolver.PluginName:
+ 		return modelcatalogresolver.Init(bifrostConfig.ModelCatalog, logger)
+ 
++	case "cg-front":
++		raw, _ := json.Marshal(pluginConfig)
++		return cgFront.New(raw)
++
++	case "cg-back":
++		raw, _ := json.Marshal(pluginConfig)
++		return cgBack.New(raw)
++
+ 	default:
+ 		return nil, fmt.Errorf("unknown built-in plugin: %s", name)
+ 	}
+@@ -325,16 +336,42 @@ func (s *BifrostHTTPServer) loadBuiltinPlugins(ctx context.Context) error {
+ 	}
+ 	s.Config.SetPluginOrderInfo(otel.PluginName, builtinPlacement, schemas.Ptr(6))
+ 
+-	// 7. Semantic Cache (if configured in PluginConfigs)
++	// 7. ChronoGuard Front (runs immediately before Semantic Cache)
++	cgFrontConfig := s.getPluginConfig("cg-front")
++	if cgFrontConfig == nil || cgFrontConfig.Enabled {
++		var cfg any
++		if cgFrontConfig != nil {
++			cfg = cgFrontConfig.Config
++		}
++		s.registerPluginWithStatus(ctx, "cg-front", nil, cfg, false)
++	} else {
++		s.markPluginDisabled("cg-front")
++	}
++	s.Config.SetPluginOrderInfo("cg-front", builtinPlacement, schemas.Ptr(7))
++
++	// 8. Semantic Cache (if configured in PluginConfigs)
+ 	semanticCacheConfig := s.getPluginConfig(semanticcache.PluginName)
+ 	if semanticCacheConfig != nil && semanticCacheConfig.Enabled {
+ 		s.registerPluginWithStatus(ctx, semanticcache.PluginName, nil, semanticCacheConfig.Config, false)
+ 	} else {
+ 		s.markPluginDisabled(semanticcache.PluginName)
+ 	}
+-	s.Config.SetPluginOrderInfo(semanticcache.PluginName, builtinPlacement, schemas.Ptr(7))
++	s.Config.SetPluginOrderInfo(semanticcache.PluginName, builtinPlacement, schemas.Ptr(8))
++
++	// 9. ChronoGuard Back (runs immediately after Semantic Cache)
++	cgBackConfig := s.getPluginConfig("cg-back")
++	if cgBackConfig == nil || cgBackConfig.Enabled {
++		var cfg any
++		if cgBackConfig != nil {
++			cfg = cgBackConfig.Config
++		}
++		s.registerPluginWithStatus(ctx, "cg-back", nil, cfg, false)
++	} else {
++		s.markPluginDisabled("cg-back")
++	}
++	s.Config.SetPluginOrderInfo("cg-back", builtinPlacement, schemas.Ptr(9))
+ 
+-	// 8. Compat (if any compat feature is enabled in ClientConfig)
++	// 10. Compat (if any compat feature is enabled in ClientConfig)
+ 	cc := s.Config.ClientConfig.Compat
+ 	compatCfg := &compat.Config{
+ 		ConvertTextToChat:                   cc.ConvertTextToChat,
+@@ -346,16 +383,16 @@ func (s *BifrostHTTPServer) loadBuiltinPlugins(ctx context.Context) error {
+ 		ConvertDecisionToResponses:          cc.ConvertDecisionToResponses,
+ 	}
+ 	s.registerPluginWithStatus(ctx, compat.PluginName, nil, compatCfg, false)
+-	s.Config.SetPluginOrderInfo(compat.PluginName, builtinPlacement, schemas.Ptr(8))
++	s.Config.SetPluginOrderInfo(compat.PluginName, builtinPlacement, schemas.Ptr(10))
+ 
+-	// 9. Maxim (if configured in PluginConfigs)
++	// 11. Maxim (if configured in PluginConfigs)
+ 	maximConfig := s.getPluginConfig(maxim.PluginName)
+ 	if maximConfig != nil && maximConfig.Enabled {
+ 		s.registerPluginWithStatus(ctx, maxim.PluginName, nil, maximConfig.Config, false)
+ 	} else {
+ 		s.markPluginDisabled(maxim.PluginName)
+ 	}
+-	s.Config.SetPluginOrderInfo(maxim.PluginName, builtinPlacement, schemas.Ptr(9))
++	s.Config.SetPluginOrderInfo(maxim.PluginName, builtinPlacement, schemas.Ptr(11))
+ 
+ 	// 10. ModelCatalogResolver (last routing layer — fills req.Provider from catalog only when
+ 	// no earlier routing plugin (governance routing rules, governance VK LB, enterprise LB)
