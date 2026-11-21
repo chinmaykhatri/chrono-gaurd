@@ -29,6 +29,14 @@ async def client(tmp_path):
         async with AsyncClient(transport=ASGITransport(app=application), base_url="http://test") as c:
             yield c, redis_client, database
 
+def test_net_savings_requires_prices_for_both_saved_and_spent_work():
+    from app.repository import ledger_totals
+    rows = [{"kind": "tokens_saved", "usd": 3}, {"kind": "llm_tokens", "usd": 5}]
+    assert ledger_totals(rows)["net_usd"] == -2
+    assert ledger_totals(rows[1:])["net_usd"] is None
+    assert ledger_totals([*rows, {"kind": "tavily_credits", "usd": None}])["net_usd"] is None
+
+
 @pytest.mark.asyncio
 async def test_healthz(client):
     c, _, _ = client
@@ -62,23 +70,22 @@ async def test_eval_datasets_and_runs(client):
     assert len(body["items"]) >= 1
     assert body["items"][0]["id"] == "stalebench-mini"
 
-    # GET /eval/runs
     resp = await c.get("/api/v1/eval/runs")
     assert resp.status_code == 200
-    runs = resp.json()["items"]
-    assert len(runs) >= 1
-    run_id = runs[0]["id"]
-
-    # GET /eval/runs/{id}/report
+    assert resp.json()["items"] == []
+    csrf = {"Origin": "http://localhost:3000", "X-CSRF-Token": "csrf-token-123"}
+    unsupported = await c.post("/api/v1/eval/runs", json={"dataset_id": "stalebench-mini"}, headers=csrf)
+    assert unsupported.status_code == 422
+    run = await c.post("/api/v1/eval/runs", json={"dataset_id": "release-replay"}, headers=csrf)
+    assert run.status_code == 200
+    run_id = run.json()["id"]
     resp = await c.get(f"/api/v1/eval/runs/{run_id}/report")
     assert resp.status_code == 200
     report = resp.json()
     assert report["status"] == "complete"
-    assert "metrics" in report
-    assert "pr_curve" in report
-    assert "calibration_bins" in report
-    assert "confusion_matrix" in report
-    assert "variants" in report
+    assert report["provenance"] == "controlled_replay"
+    assert all("credits" in row for row in report["rows"])
+    assert len(report["variants"]) == 8
 
 @pytest.mark.asyncio
 async def test_classes_and_summary(client):
@@ -146,5 +153,6 @@ async def test_system_probe(client):
     assert data["ok"] is True
     assert data["status"] == "verified"
     assert data["probe_latency_ms"] >= 0
-    assert len(data["steps"]) == 5
+    assert data["provenance"] == "isolated_redis_probe"
+    assert len(data["steps"]) == 4
     assert all(s["ok"] for s in data["steps"])
