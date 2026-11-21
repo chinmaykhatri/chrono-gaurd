@@ -1,194 +1,78 @@
 # ChronoGuard
 
-**A freshness-aware reliability layer for the Bifrost AI gateway.**
+ChronoGuard adds a freshness policy to the Bifrost semantic cache. It extracts public factual claims from model answers, gives each claim a verification window, and stores shared evidence in a fact ledger. A release change can mark every cached answer that mentions the old version stale.
 
-ChronoGuard gives factual claims in LLM answers a "best-before date." It tracks claim-level evidence and freshness, revalidates only when necessary, and preserves the speed of semantic caching while detecting and safely handling stale factual answers.
+The gateway makes the delivery decision. FastAPI verifies claims and updates the evidence and manifest records. Redis holds policies, clocks, the hot manifest and coordination state. PostgreSQL stores the verification trail. The React console shows the gateway outcome, supporting sources, and evaluation traces.
 
-> Built on [Bifrost](https://github.com/maximhq/bifrost) by Maxim AI and [Tavily](https://tavily.com)
+## Run the release replay
 
-## The Problem
+Run these commands from this directory with Docker Desktop or Docker Engine, Git, and uv available. The replay uses a local fixture provider and search service. It needs no model or Tavily API key.
 
-Conventional semantic-cache TTLs treat stable facts ("What is the speed of light?") and volatile facts ("What is the latest version of React?") alike. Checking every cache hit with live search destroys caching's latency and cost benefits. ChronoGuard preserves fast cache hits while detecting and repairing stale factual answers — per claim, not per response.
-
-## Architecture
-
-```mermaid
-flowchart TD
-    Client["🖥️ Client"] -->|OpenAI-compatible API| BF["Bifrost Gateway"]
-
-    subgraph Bifrost["Bifrost Plugin Sandwich"]
-        direction TB
-        CGF["cg-front<br/>classify · policy · decide"]
-        SC["semantic_cache<br/>Weaviate vectors"]
-        CGB["cg-back<br/>grounding · origin tag"]
-        CGF --> SC --> CGB
-    end
-
-    BF --> CGF
-
-    CGB -->|cache miss| LLM["LLM Provider<br/>OpenAI · Anthropic · etc."]
-    CGF -->|ingest / verify| V["Verifier<br/>Python FastAPI"]
-    V -->|claim extraction| LLM2["LLM (via Bifrost)"]
-    V -->|evidence retrieval| Tavily["Tavily Search API"]
-    V -->|judge verdicts| LLM3["LLM Judge"]
-
-    V <-->|manifests, ledger,<br/>singleflight| Redis["Redis 7"]
-    V <-->|audit, analytics,<br/>evaluation| PG["PostgreSQL 16"]
-
-    Console["📊 Console<br/>React 18"] -->|REST + SSE| V
+```sh
+uv run --project verifier python scripts/bootstrap.py
+docker compose -f docker-compose.yml -f deploy/compose.replay.yml -p chronoguard-replay up --build -d --wait
+uv run --project verifier python scripts/release_demo.py --output release-proof.json
 ```
 
-## Core Behavior
+Open [the console](http://localhost:8080) and use the generated password in `.admin-password`. The first gateway build fetches the pinned Bifrost revision, applies the integration patch, and compiles the embedded plugins. The replay clock and fixture are only for this local stack.
 
-| Scenario | Action | Tavily Calls | LLM Calls |
-|----------|--------|:---:|:---:|
-| **Cache miss** (new question) | Extract claims → classify → verify → score → persist manifest | Per-claim | Extraction + Judge |
-| **Fresh cache hit** (within best_before) | Serve immediately | **0** | **0** |
-| **Due cache hit** (past best_before) | Revalidate only due claims | Due claims only | Judge only |
-| **Stale cache hit** (contradicted) | Invalidate → regenerate with evidence | Revalidation | Regeneration |
+If port 8080 is occupied, set `NGINX_PORT=18080` and `CG_CONSOLE_ORIGIN=http://localhost:18080` in your shell before starting Compose and the demo. Open the console on the selected port. Each replay scopes its fixture facts to a fresh run, so you can repeat the scenario against the same database and keep earlier results.
 
-## Quick Start
+If the Docker builder cannot complete the source download, pass it an archive of the same pinned revision. In PowerShell, run these commands before retrying Compose.
 
-```bash
-# 1. Clone and configure
-git clone https://github.com/your-org/chronoguard
-cd chronoguard/chronoguard
-cp .env.example .env
-# Edit .env: add TAVILY_API_KEY, OPENAI_API_KEY
-
-# 2. Start everything
-make data         # Start Postgres + Redis
-make bootstrap    # Run migrations and seed data
-
-# 3. Start the verifier
-cd verifier && uv run uvicorn app.main:app --host 0.0.0.0 --port 8088
-
-# 4. Start the console
-cd console && npm install && npm run dev
-
-# 5. Open http://localhost:5173 and log in with the admin password
+```powershell
+$sourceArchive = Join-Path $env:TEMP 'chronoguard-pinned-source'
+python bifrost/prepare.py --archive $sourceArchive
+$env:CG_BIFROST_SOURCE_CONTEXT = $sourceArchive
 ```
 
-### Docker Compose (full stack)
+If Docker can fetch the source but its build network times out contacting the Go module proxy, the optional build override lets the gateway compiler use the host network.
 
-```bash
-docker compose up -d --wait
-open http://localhost:8080
+```sh
+docker compose -f docker-compose.yml -f deploy/compose.replay.yml -f deploy/compose.build-host-network.yml -p chronoguard-replay up --build -d --wait
 ```
 
-## Tech Stack
+The demo asserts two cache entries sharing a release fact, a fresh semantic hit, one due fact lookup, a grounded replacement, strict refusal during an injected provider outage, and a subsequent miss after exact eviction. Bifrost, PostgreSQL, Redis, and Weaviate run normally in this replay. The generations, embeddings, evidence responses, and clock are controlled.
 
-| Layer | Technology | Purpose |
-|-------|-----------|---------|
-| Gateway | Go (Bifrost fork) | Plugin sandwich: cg-front → semantic_cache → cg-back |
-| Verifier | Python 3.12, FastAPI, Uvicorn | Claim extraction, Tavily integration, judge, scoring, manifests |
-| Console | React 18, TypeScript, Vite, Tailwind | Playground, Live Feed, Cache Explorer, Eval Lab |
-| Data | PostgreSQL 16 | System of record: audit, analytics, evaluation |
-| Cache | Redis 7 | Hot path: manifests, ledger, singleflight, coordination |
-| Search | Tavily API | Targeted, claim-specific evidence retrieval |
+For live integrations, set `OPENAI_API_KEY` and `TAVILY_API_KEY` in the generated `.env` and start the base stack with `docker compose up --build -d --wait`. The base stack binds the console and gateway to loopback. Keep the replay and live runs in distinct Compose projects.
 
-## Volatility Classes
+## Evaluate the policy
 
-| Class | Half-life | Soft TTL | Example |
-|-------|----------|---------|---------|
-| `static` | ∞ | ∞ | Math, definitions, settled history |
-| `slow_facts` | 365 d | 90 d | Geography, institutions |
-| `org_people` | 90 d | 21 d | CEOs, founders, headcount |
-| `software_versions` | 21 d | 7 d | Latest versions, API changes |
-| `pricing_plans` | 14 d | 3 d | Prices, tiers, quotas |
-| `regulation_policy` | 60 d | 14 d | Laws, tax rates, compliance |
-| `news_events` | 4 d | 1 d | Recent events, launches |
-| `realtime` | 15 min | 0 | Stock prices, weather, FX |
-
-## Freshness Scoring
-
-```
-z = -1.0 + wV[verdict] + 1.5·support + 0.8·recency + 1.0·authority
-    + 0.8·agreement + 0.4·coverage - 2.0·contra + 0.4·prior
-
-freshness = 100 × σ(z)
+```sh
+python eval/run_eval.py --output release-replay-report.json
 ```
 
-Freshness ≠ truth. `freshness_score` (is the claim current?) is kept separate from `support_confidence` (how sure is the evidence?).
+The Evaluation Lab and CLI replay a frozen Go and Node.js release timeline. They compare cache-only, five TTLs, always verify, and a claim ledger. The export includes returned and expected values, cache outcomes, evidence digests, credit units, provider-call counts, and local replay timings. [Benchmark methodology](docs/benchmark.md)
 
-## Key Principles
+## Request behavior
 
-- **Freshness is not truth** — keep freshness_score separate from support_confidence
-- **Evidence before correction** — never silently rewrite delivered answers
-- **Preserve uncertainty** — abstain when evidence is ambiguous
-- **Two-key evidence rule** — require corroborating sources for invalidation
-- **No fabricated scores** — a Tavily outage ≠ a "fresh" verdict
+| Path | Gateway behavior |
+|---|---|
+| Fresh hit | Checks the cached text against the stored manifest. No new factual search, generation, extraction, or judge call. Semantic lookup may call an embedding model. |
+| Due hit | Checks due claims and reuses supported facts across matching entries. Strict policy waits for the result. |
+| Known stale hit | Rejects the old answer, clears the exact Bifrost entry, retries with evidence, and verifies the replacement before serving it. Cascade marks related manifests stale. |
+| Guard rejects a candidate | Issues a cache-disabled provider call with the incoming conversation and withholds the cached answer. |
+| Evidence or provider failure | Strict policy returns a verification error. Standard can serve annotated uncertainty on eligible fail-open paths. |
+| Strict streaming | The gateway rejects this mode before sending answer tokens. |
+| Shadow | Records what the gateway would decide using available manifests. Per-request shadow headers require explicit gateway configuration. |
 
-## Shadow Mode & ROI Analytics
+The replay targets non-streamed text chat. Strict mode attempts a grounded retry on a known-stale initial answer when evidence is available and withholds unverified text. The guard remains a heuristic with limited held-out coverage. Set `CG_DELTA_ENABLED=true` and `CG_DELTA_SOURCE_URLS` to a JSON list of approved authoritative HTTPS URLs to opt in to delta revalidation. Set `CG_SCHEDULER_MODE=optimal` for the bounded due-on-access refresh allocator. The replay report covers policy behavior under controlled assumptions. Live accuracy, throughput, and savings require a separate measurement.
 
-ChronoGuard supports non-intrusive **Shadow Mode** (`shadow.enabled: true` or per-request header `x-cg-shadow: 1`):
-- **Zero Gateway Modification:** Serves byte-identical responses from cache or provider while evaluating decisions in the background.
-- **Drift Detection:** Records `decision_shadow` (`evict_regen`, `serve`, `serve_swr`, `fail_closed`) with reasons.
-- **ROI Dashboard (`/roi`):** Monitors observed traffic, stale answers prevented, cache entries at risk, top stale facts, and verification costs (LIVE) vs projected freshness savings (SIMULATED).
-- **Export & Reporting:** Includes JSON export and copyable Markdown reports directly from the console.
+## Development checks
 
-## Semantic-Hit Guard
-
-To eliminate dangerous false cache hits on near-miss queries (e.g. "What is the capital of Australia?" hitting a cached answer for "What is the capital of Austria?"), ChronoGuard implements a pure-Go **Semantic-Hit Guard** (`guard.enabled: true` or per-request header `x-cg-guard: 1`):
-- **Ultra-low Latency:** Executes in **9.34 μs** (LIVE benchmark) on the hot path — well within its 100 μs latency budget. Zero network calls, zero Redis calls.
-- **Syntactic & Entity Extraction:** Extracts digits, version strings (`v3.12`), 4-digit years (`19xx`, `20xx`), capitalized entity candidates, and polarity tokens (`current`, `former`, `not`).
-- **Precision Verification:** Evaluated against 60 balanced test pairs (30 near-miss, 30 true paraphrases) in `eval/guard_pairs.json`:
-  - **Accuracy:** 100.0% [LIVE]
-  - **Precision:** 1.0000 [LIVE]
-  - **Recall:** 1.0000 [LIVE]
-  - **Average Overhead:** 9.34 μs [LIVE]
-- **Automatic Cache Bypass:** On guard trip, stamps `x-cg-guard: tripped; reason=<reason>`, bypasses the stale semantic match (`x-bf-cache-bypass: 1`), and routes to upstream LLM generation.
-
-## Delta Revalidation
-
-To avoid expensive multi-credit Tavily searches when rechecking known facts, ChronoGuard supports **Delta Revalidation** (`delta.enabled: true` in `chronoguard.yaml`):
-- **Fast-Path Conditional HTTP Checks:** Re-checks the original authoritative source URL directly via HTTP GET.
-- **HTTP 304 & Hash Matching:** If the origin returns `304 Not Modified` or the response text matches the stored SHA-256 hash (`source_text_hash`), the fact is confirmed fresh with **0 Tavily search credits** and **0 LLM tokens** used (~18 ms p50 latency vs ~1840 ms full search pipeline).
-- **Direct Passage Evaluation on Change:** When the source content changes, the Verifier judges the newly fetched passage directly, bypassing search queries entirely (0 search credits, 1 judge call).
-- **Graceful Fallback:** Any 404, 410, or network failure automatically falls back to full multi-query Tavily search. Measured search avoidance rate: **92.0%** [SIMULATED].
-
-## Budget-Optimal Refresh Scheduler
-
-ChronoGuard implements a **Budget-Optimal Refresh Scheduler** based on Cho & Garcia-Molina (2003) (`scheduler.mode: optimal` in `chronoguard.yaml`):
-- **Poisson State Change Modeling:** Models fact state transitions as a Poisson process with rate $\lambda$. Maintains empirical check history ($n$, $X$, $\bar{I}$) with Jeffreys smoothing:
-  $$\hat{\lambda} = -\frac{1}{\bar{I}} \ln\left(\frac{n - X + 0.5}{n + 0.5}\right)$$
-- **Traffic-Weighted Staleness Minimization:** Minimizes total staleness weighted by query arrival traffic $w_i = \text{hits}_i / \sum \text{hits}$:
-  $$\min \sum_{i=1}^N w_i \left(1 - F(\lambda_i, I_i)\right) \quad \text{subject to} \quad \sum_{i=1}^N \frac{1}{I_i} \le B$$
-- **Lagrangian Multiplier Solver:** Solves for optimal intervals $I_i^* \propto \frac{1}{\sqrt{w_i \lambda_i}}$, clamped within class bounds with bisection convergence meeting the budget constraint within 5%.
-- **Measured Empirical Results (100 facts):**
-  - **Freshness Gain:** +6.27% higher traffic-weighted freshness vs standard heuristic adaptive intervals (97.5% vs 91.23%) [SIMULATED].
-  - **Cost Savings:** Allocates 4.2x more frequent rechecks to high-traffic software/pricing facts while slowing down cold/zero-traffic facts, achieving a 94.4% cost reduction over static 1h polling [SIMULATED].
-
-## Project Structure
-
-```
-chronoguard/
-  bifrost/plugins/chronoguard/       # Go plugin pair
-    front/  back/  internal/
-  verifier/                          # Python FastAPI service
-    app/{pipeline,ledger,triage,tavily,judge,scoring,regen,eval,clock}/
-    migrations/  tests/
-  console/                           # React 18 dashboard
-    src/{pages,components,hooks,api}/
-  deploy/  eval/  docs/
-  docker-compose.yml  chronoguard.yaml  Makefile
+```sh
+python bifrost/prepare.py
+cd bifrost/plugins/chronoguard && go test ./...
 ```
 
-## Limitations
+From this directory, run `uv run --project verifier pytest verifier/tests -q` and run `npm ci`, `npm run build`, and `npm test` in `console`. Use [the demo script](docs/demo-script.md) for public endpoint verification.
 
-- ChronoGuard does **not** eliminate hallucinations or guarantee truth
-- Evidence retrieval depends on Tavily availability and web content quality
-- Streaming responses receive post-response annotations only (no token-level repair)
-- Evaluation metrics are measured against a labeled dataset — not universal guarantees
-- The system verifies only externally checkable factual claims (not opinions, creative text, or personal facts)
+With the replay stack running, these commands also exercise the signed-in console in Chromium. The browser check opens all ten pages on desktop and mobile, saves an existing policy, verifies a fact, exports the evaluation and tests keyboard, drag, scroll and reduced-motion behavior. Pass `--gateway http://localhost:18080` if you selected port 18080.
 
-## License
+```sh
+uv run --with playwright==1.60.0 python -m playwright install chromium
+uv run --with playwright==1.60.0 python scripts/console_smoke.py --output browser-proof.json
+```
 
-See repository license file. Bifrost is used under its original license.
-
-## Credits & Citations
-
-- **Bifrost** by [Maxim AI](https://maxim.ai) — inference gateway and semantic cache
-- **Tavily** — live evidence retrieval API
-- **FreshLLMs / FreshQA** — Vu, T., Iyyer, M., et al. (2023). *FreshLLMs: Refreshing Large Language Models with Search Engine Augmentation*. arXiv:2310.03214. Benchmark dataset slice used for external drift evaluation under Apache-2.0.
+ChronoGuard integrates [Bifrost](https://github.com/maximhq/bifrost) and [Tavily](https://tavily.com). The historical FreshQA-derived and StaleBench label fixtures remain available for future measured evaluation.
 
