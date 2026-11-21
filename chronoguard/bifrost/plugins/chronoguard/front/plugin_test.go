@@ -144,6 +144,18 @@ func TestSemanticHitGuardHeaders(t *testing.T) {
 	}
 }
 
+func TestCacheHitUsesLookupOutcomeInsteadOfEmbeddingMetadata(t *testing.T) {
+	ctx := &schemas.BifrostContext{}
+	id, provider, model, tokens := "entry-1", "openai", "embedding-model", 2
+	schemas.SetCacheMetadataOnContext(ctx, &schemas.BifrostCacheMetadata{
+		CacheID: &id, ProviderUsed: &provider, ModelUsed: &model, InputTokens: &tokens,
+	})
+	schemas.SetCacheLookupOnContext(ctx, &schemas.BifrostCacheMetadata{CacheHit: true, CacheID: &id})
+	if hit, cacheID := isCacheHit(ctx, nil); !hit || cacheID != id {
+		t.Fatalf("got hit=%t, cacheID=%q", hit, cacheID)
+	}
+}
+
 func BenchmarkManifestAnnotation(b *testing.B) {
 	f := float64(85)
 	m := &manifest.Manifest{
