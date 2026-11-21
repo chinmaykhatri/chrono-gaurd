@@ -1,0 +1,120 @@
+{
+  "id": "release-replay",
+  "name": "Release evidence replay",
+  "version": "1.0.0",
+  "description": "Synthetic traffic around published Go releases and even-numbered Node.js major releases. Provider awareness delay and check costs are scenario inputs.",
+  "label_date": "2025-08-12",
+  "fixed_ttl_hours": [
+    1,
+    6,
+    12,
+    24,
+    48
+  ],
+  "facts": {
+    "go_major": {
+      "interval_hours": 6,
+      "credits": 2,
+      "history": [
+        {
+          "effective_at": "2025-02-11T00:00:00+00:00",
+          "value": "1.24",
+          "url": "https://go.dev/blog/go1.24"
+        },
+        {
+          "effective_at": "2025-08-12T00:00:00+00:00",
+          "value": "1.25",
+          "url": "https://go.dev/blog/go1.25"
+        }
+      ]
+    },
+    "node_even_major": {
+      "interval_hours": 12,
+      "credits": 2,
+      "history": [
+        {
+          "effective_at": "2024-04-24T00:00:00+00:00",
+          "value": "22",
+          "url": "https://nodejs.org/en/blog/release/v22.0.0"
+        },
+        {
+          "effective_at": "2025-05-06T00:00:00+00:00",
+          "value": "24",
+          "url": "https://nodejs.org/en/blog/release/v24.0.0"
+        }
+      ]
+    },
+    "constant": {
+      "interval_hours": null,
+      "credits": 0,
+      "history": [
+        {
+          "effective_at": "2024-01-01T00:00:00+00:00",
+          "value": "4",
+          "url": null
+        }
+      ]
+    }
+  },
+  "routes": {
+    "go-version": {
+      "facts": [
+        "go_major"
+      ],
+      "provider_values": {
+        "go_major": "1.24"
+      },
+      "observed_by_provider_at": "2025-08-13T12:00:00+00:00"
+    },
+    "go-with-control": {
+      "facts": [
+        "go_major",
+        "constant"
+      ],
+      "provider_values": {
+        "go_major": "1.24",
+        "constant": "4"
+      },
+      "observed_by_provider_at": "2025-08-13T12:00:00+00:00"
+    },
+    "node-version": {
+      "facts": [
+        "node_even_major"
+      ],
+      "provider_values": {
+        "node_even_major": "22"
+      },
+      "observed_by_provider_at": "2025-05-07T12:00:00+00:00"
+    },
+    "node-with-control": {
+      "facts": [
+        "node_even_major",
+        "constant"
+      ],
+      "provider_values": {
+        "node_even_major": "22",
+        "constant": "4"
+      },
+      "observed_by_provider_at": "2025-05-07T12:00:00+00:00"
+    }
+  },
+  "traffic": [
+    {
+      "start": "2025-05-05T00:23:00+00:00",
+      "hours": 73,
+      "routes": [
+        "node-version",
+        "node-with-control"
+      ]
+    },
+    {
+      "start": "2025-08-11T00:37:00+00:00",
+      "hours": 73,
+      "routes": [
+        "go-version",
+        "go-with-control"
+      ]
+    }
+  ],
+  "traffic_step_minutes": 30
+}
