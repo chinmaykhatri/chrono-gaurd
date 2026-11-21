@@ -1,108 +1,147 @@
-# ChronoGuard — Docker Compose orchestration
-# Built on Bifrost by Maxim AI and Tavily
-#
-# Usage:
-#   cp .env.example .env   # fill in API keys
-#   docker compose up -d --wait
+name: chronoguard
+
+x-verifier: &verifier
+  image: chronoguard-verifier:local
+  build:
+    context: .
+    dockerfile: verifier/Dockerfile
+  environment:
+    CG_ENVIRONMENT: ${CG_ENVIRONMENT:-development}
+    CG_CONSOLE_ORIGIN: ${CG_CONSOLE_ORIGIN:-http://localhost:8080}
+    CG_INTERNAL_KEY: ${CG_INTERNAL_KEY:?Run scripts/bootstrap.py}
+    CG_SESSION_SECRET: ${CG_SESSION_SECRET:?Run scripts/bootstrap.py}
+    CG_ADMIN_PASSWORD_HASH: ${CG_ADMIN_PASSWORD_HASH:?Run scripts/bootstrap.py}
+    CG_DATABASE_URL: postgresql+asyncpg://chronoguard:${POSTGRES_PASSWORD:?Run scripts/bootstrap.py}@postgres:5432/chronoguard
+    CG_REDIS_URL: redis://:${REDIS_PASSWORD:?Run scripts/bootstrap.py}@redis:6379/0
+    CG_BIFROST_URL: http://bifrost:8002
+    CG_EXTRACTOR_MODEL: ${CG_EXTRACTOR_MODEL:-openai/gpt-4o-mini}
+    CG_JUDGE_MODEL: ${CG_JUDGE_MODEL:-openai/gpt-4o-mini}
+    CG_JUDGE_ESCALATION_MODEL: "${CG_JUDGE_ESCALATION_MODEL:-}"
+    CG_SOURCE_AUTHORITIES: '{"go.dev":1,"nodejs.org":1,"react.dev":1,"python.org":1,"www.python.org":1}'
+    CG_ALLOW_SIMULATED_CLOCK: ${CG_ALLOW_SIMULATED_CLOCK:-false}
+    CG_STORE_CONTENT: ${CG_STORE_CONTENT:-false}
+    CG_GUARD_ENABLED: ${CG_GUARD_ENABLED:-false}
+    CG_SHADOW_ENABLED: ${CG_SHADOW_ENABLED:-false}
+    CG_DELTA_ENABLED: ${CG_DELTA_ENABLED:-false}
+    CG_DELTA_SOURCE_URLS: "${CG_DELTA_SOURCE_URLS:-[]}"
+    CG_SCHEDULER_MODE: ${CG_SCHEDULER_MODE:-standard}
+    CG_SCHEDULER_BUDGET_CHECKS_PER_HOUR: ${CG_SCHEDULER_BUDGET_CHECKS_PER_HOUR:-100}
+    CG_TAVILY_CREDITS_PER_HOUR: ${CG_TAVILY_CREDITS_PER_HOUR:-300}
+    CG_LLM_TOKENS_PER_HOUR: ${CG_LLM_TOKENS_PER_HOUR:-400000}
+    CG_RETENTION_DAYS: ${CG_RETENTION_DAYS:-7}
+    TAVILY_API_KEY: ${TAVILY_API_KEY:-}
 
 services:
-  # ---------- Data stores ----------
   postgres:
-    image: postgres:16-alpine
-    restart: unless-stopped
+    image: postgres:16.16-alpine
     environment:
       POSTGRES_DB: chronoguard
-      POSTGRES_USER: ${POSTGRES_USER:-chronoguard}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-chronoguard}
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      POSTGRES_USER: chronoguard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/bootstrap.py}
     volumes:
-      - pgdata:/var/lib/postgresql/data
-      - ./deploy/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - postgres_v2:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U chronoguard"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U chronoguard -d chronoguard"]
+      interval: 2s
       timeout: 3s
-      retries: 5
+      retries: 30
 
   redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    ports:
-      - "${REDIS_PORT:-6379}:6379"
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    image: redis:7.4.12-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Run scripts/bootstrap.py}
+      REDISCLI_AUTH: ${REDIS_PASSWORD:?Run scripts/bootstrap.py}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
     volumes:
-      - redisdata:/data
+      - redis_v2:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
+      interval: 2s
       timeout: 3s
-      retries: 5
+      retries: 30
 
-  # ---------- Verifier (Python FastAPI) ----------
-  verifier:
-    build:
-      context: ./verifier
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "${VERIFIER_PORT:-8088}:8088"
+  weaviate:
+    image: cr.weaviate.io/semitechnologies/weaviate:1.32.4
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://chronoguard:chronoguard@postgres:5432/chronoguard}
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
-      TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: "true"
+      DEFAULT_VECTORIZER_MODULE: none
+      PERSISTENCE_DATA_PATH: /var/lib/weaviate
+      CLUSTER_HOSTNAME: chronoguard
+    volumes:
+      - weaviate_data:/var/lib/weaviate
+
+  weaviate-ready:
+    image: busybox:1.37
+    depends_on:
+      - weaviate
+    command: ["sh", "-c", "for attempt in $(seq 1 60); do wget -q -O /dev/null http://weaviate:8080/v1/.well-known/ready && exit 0; sleep 1; done; exit 1"]
+
+  bifrost:
+    build:
+      context: .
+      dockerfile: bifrost/Dockerfile
+      additional_contexts:
+        upstream_source: "${CG_BIFROST_SOURCE_CONTEXT:-./bifrost}"
+    environment:
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      BIFROST_URL: ${BIFROST_URL:-http://bifrost:8002}
-      BIFROST_API_KEY: ${BIFROST_API_KEY:-}
-      CG_INTERNAL_KEY: ${CG_INTERNAL_KEY:-change-me-in-production-32chars-minimum}
-      CG_CONFIG_PATH: /etc/chronoguard/chronoguard.yaml
-      CG_CLOCK_MODE: ${CG_CLOCK_MODE:-real}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      ENVIRONMENT: ${ENVIRONMENT:-development}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-chronoguard}
-      EXTRACTOR_MODEL: ${EXTRACTOR_MODEL:-gpt-4o-mini}
-      JUDGE_MODEL: ${JUDGE_MODEL:-gpt-4o-mini}
-      JUDGE_ESCALATION_MODEL: ${JUDGE_ESCALATION_MODEL:-gpt-4o}
+      CG_INTERNAL_KEY: ${CG_INTERNAL_KEY:?Run scripts/bootstrap.py}
+      CG_REDIS_URL: redis://:${REDIS_PASSWORD:?Run scripts/bootstrap.py}@redis:6379/0
+      CG_VERIFIER_URL: http://verifier:8088
+      CG_ALLOW_SIMULATED_CLOCK: ${CG_ALLOW_SIMULATED_CLOCK:-false}
+      CG_GUARD_ENABLED: ${CG_GUARD_ENABLED:-false}
+      CG_SHADOW_ENABLED: ${CG_SHADOW_ENABLED:-false}
+      CG_DEFAULT_POLICY: ${CG_DEFAULT_POLICY:-standard}
+    depends_on:
+      redis:
+        condition: service_healthy
+      weaviate-ready:
+        condition: service_completed_successfully
+
+  migrate:
+    <<: *verifier
+    command: ["/app/.venv/bin/alembic", "upgrade", "head"]
     depends_on:
       postgres:
         condition: service_healthy
+
+  verifier:
+    <<: *verifier
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
-    volumes:
-      - ./chronoguard.yaml:/etc/chronoguard/chronoguard.yaml:ro
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8088/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8088/readyz', timeout=3)"]
+      interval: 3s
+      timeout: 4s
+      retries: 20
 
-  # ---------- Console (React/Vite) ----------
   console:
     build:
       context: ./console
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    ports:
-      - "${CONSOLE_PORT:-5173}:80"
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-/api}
-    depends_on:
-      verifier:
-        condition: service_healthy
 
-  # ---------- Nginx reverse proxy ----------
   nginx:
-    image: nginx:alpine
-    restart: unless-stopped
+    image: nginx:1.27-alpine
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/readyz"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
     ports:
-      - "${NGINX_PORT:-8080}:80"
+      - "127.0.0.1:${NGINX_PORT:-8080}:80"
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - verifier
-      - console
+      verifier:
+        condition: service_healthy
+      bifrost:
+        condition: service_started
+      console:
+        condition: service_started
 
 volumes:
-  pgdata:
-  redisdata:
+  postgres_v2:
+  redis_v2:
+  weaviate_data:
 
