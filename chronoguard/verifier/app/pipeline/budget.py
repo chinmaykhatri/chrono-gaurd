@@ -27,6 +27,14 @@ class Buckets:
     async def take(self, tenant: str, kind: str, amount: float) -> bool:
         if amount <= 0:
             return True
+        return await self._adjust(tenant, kind, -amount)
+
+    async def refund(self, tenant: str, kind: str, amount: float) -> bool:
+        if amount <= 0:
+            return True
+        return await self._adjust(tenant, kind, amount)
+
+    async def _adjust(self, tenant: str, kind: str, delta: float) -> bool:
         capacity = self._capacity(kind)
         bucket = key(tenant, "bucket", kind)
         now = time.time()
@@ -38,9 +46,9 @@ class Buckets:
                     tokens = float(raw.get("tokens", capacity))
                     stamp = float(raw.get("stamp", now))
                     tokens = min(capacity, tokens + max(0.0, now - stamp) * capacity / 3600.0)
-                    allowed = tokens >= amount
+                    allowed = tokens + delta >= 0
                     if allowed:
-                        tokens -= amount
+                        tokens = min(capacity, tokens + delta)
                     pipe.multi()
                     pipe.hset(bucket, mapping={"tokens": tokens, "stamp": now})
                     await pipe.execute()
