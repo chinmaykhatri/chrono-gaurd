@@ -17,6 +17,7 @@ package front
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -45,14 +46,11 @@ var (
 
 // New creates the cg-front plugin and initialises its shared runtime.
 func New(raw json.RawMessage) (*Plugin, error) {
-	var cfg runtime.Config
+	cfg := runtime.Config{Enabled: true}
 	if len(raw) > 0 {
 		if err := json.Unmarshal(raw, &cfg); err != nil {
 			return nil, err
 		}
-	}
-	if !cfg.Enabled {
-		cfg.Enabled = true // safe default; kill-switch is checked per request
 	}
 	rt, err := runtime.New(cfg)
 	if err != nil {
@@ -77,15 +75,11 @@ func (p *Plugin) HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.
 		return nil, nil
 	}
 
-	// Kill switch: x-cg-mode: off bypasses everything.
-	if req != nil && strings.EqualFold(req.CaseInsensitiveHeaderLookup("x-cg-mode"), "off") {
-		ctx.SetValue(runtime.StateKey, &runtime.State{Skip: true})
-		return nil, nil
-	}
-
 	s := &runtime.State{
-		ID:     runtime.NewID(),
-		Tenant: runtime.Tenant(ctx, p.rt.Config.SingleTenantID),
+		ID:      runtime.NewID(),
+		Started: time.Now(),
+		Tenant:  runtime.Tenant(ctx, p.rt.Config.SingleTenantID),
+		Policy:  decide.Default(p.rt.Config.DefaultPolicy),
 	}
 
 	if req != nil {
@@ -101,7 +95,7 @@ func (p *Plugin) HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.
 
 		// Check shadow mode header or config
 		shadowHeader := req.CaseInsensitiveHeaderLookup("x-cg-shadow")
-		if shadowHeader == "1" || strings.EqualFold(shadowHeader, "true") || p.rt.Config.ShadowEnabled {
+		if p.rt.Config.ShadowEnabled || (p.rt.Config.AllowShadowHeader && (shadowHeader == "1" || strings.EqualFold(shadowHeader, "true"))) {
 			s.Shadow = true
 		}
 
@@ -118,6 +112,9 @@ func (p *Plugin) HTTPTransportPreHook(ctx *schemas.BifrostContext, req *schemas.
 			s.Skip = true
 		}
 
+		if strings.HasSuffix(req.Path, "/chat/completions") && json.Valid(req.Body) {
+			s.Chat = append(json.RawMessage(nil), req.Body...)
+		}
 		if req.Headers == nil {
 			req.Headers = make(map[string]string)
 		}
@@ -133,6 +130,7 @@ func (p *Plugin) PreRequestHook(ctx *schemas.BifrostContext, req *schemas.Bifros
 	if s == nil || s.Skip || req == nil {
 		return nil
 	}
+	s.Tenant = runtime.Tenant(ctx, p.rt.Config.SingleTenantID)
 
 	if req.ChatRequest != nil {
 		s.Model = req.ChatRequest.Model
@@ -144,7 +142,7 @@ func (p *Plugin) PreRequestHook(ctx *schemas.BifrostContext, req *schemas.Bifros
 
 		// Apply TTL / bypass if classified
 		if s.Class == "realtime" {
-			s.Skip = true
+			s.BypassCache = true
 		}
 	}
 
@@ -153,6 +151,23 @@ func (p *Plugin) PreRequestHook(ctx *schemas.BifrostContext, req *schemas.Bifros
 
 // PreLLMHook is called before the provider call.
 func (p *Plugin) PreLLMHook(ctx *schemas.BifrostContext, req *schemas.BifrostRequest) (*schemas.BifrostRequest, *schemas.LLMPluginShortCircuit, error) {
+	s := runtime.Get(ctx)
+	if s == nil || s.Skip || req == nil {
+		return req, nil, nil
+	}
+	policy, err := p.rt.Policy(ctx, s.Tenant, s.Policy.Name)
+	s.Policy = policy
+	if !s.Shadow && (err != nil || (s.Policy.VerifyBeforeReturn() && req.RequestType != schemas.ChatCompletionRequest)) {
+		s.Decision = string(decide.FailClosed)
+		return req, &schemas.LLMPluginShortCircuit{Error: runtime.Fail()}, nil
+	}
+	// The HTTP transport decodes this cache type before the LLM hooks.
+	// Verifier-originated retries and realtime chat never use the answer cache.
+	if s.BypassCache && !s.Shadow {
+		// A negative TTL only affects writes. Use a dedicated context flag
+		// honoured by the pinned semantic-cache integration for read/write bypass.
+		ctx.SetValue(runtime.NoCacheKey, true)
+	}
 	return req, nil, nil
 }
 
@@ -166,10 +181,18 @@ func (p *Plugin) PostLLMHook(ctx *schemas.BifrostContext, resp *schemas.BifrostR
 	if bifrostErr != nil {
 		return resp, bifrostErr, nil
 	}
+	if !s.Shadow && s.Policy.VerifyBeforeReturn() && (resp == nil || resp.ChatResponse == nil || len(resp.ChatResponse.Choices) != 1) {
+		s.Decision = string(decide.FailClosed)
+		return nil, runtime.Fail(), nil
+	}
 
 	text := runtime.Text(resp)
 	if text == "" {
-		return resp, bifrostErr, nil
+		if !s.Shadow && s.Policy.VerifyBeforeReturn() {
+			s.Decision = string(decide.FailClosed)
+			return nil, runtime.Fail(), nil
+		}
+		return resp, nil, nil
 	}
 
 	cacheHit, cacheID := isCacheHit(ctx, resp)
@@ -189,7 +212,7 @@ func (p *Plugin) handleMiss(ctx *schemas.BifrostContext, s *runtime.State, res *
 		return res, nil, nil
 	}
 
-	if s.Policy.Strictness == "strict" {
+	if !s.Shadow && s.Policy.VerifyBeforeReturn() {
 		// Strict: inline verification - block until claims are scored.
 		if err := p.rt.Verify(ctx, s, res, cacheID); err != nil {
 			log.Printf("[cg-front] inline verify failed: %v", err)
@@ -200,160 +223,82 @@ func (p *Plugin) handleMiss(ctx *schemas.BifrostContext, s *runtime.State, res *
 			}
 			return nil, runtime.Fail(), nil
 		}
-		s.Decision = "passthrough"
 		return res, nil, nil
 	}
 
 	// Standard/lenient: async ingest.
+	if s.Shadow {
+		s.ShadowDecision = "observe"
+		s.ShadowReason = "miss"
+	}
 	payload := runtime.Payload(s, text, cacheID)
-	go func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := p.rt.Verifier.Post(bgCtx, "/internal/v1/ingest", payload, nil); err != nil {
-			log.Printf("[cg-front] async ingest failed: %v", err)
-		}
-	}()
+	// Queue the durable job before returning a receipt. Evidence verification
+	// stays off the miss path for asynchronous policies.
+	enqueueCtx, cancel := context.WithTimeout(ctx, 350*time.Millisecond)
+	defer cancel()
+	var queued runtime.Result
+	if err := p.rt.Verifier.Post(enqueueCtx, "/internal/v1/ingest", payload, &queued); err != nil {
+		log.Printf("[cg-front] ingest unavailable: %v", err)
+	} else if queued.ResponseID != "" {
+		s.Annotation = map[string]any{"response_id": queued.ResponseID, "status": "pending"}
+	}
 	s.Decision = "passthrough"
 	return res, nil, nil
 }
 
 // handleHit processes a cache-served response.
 func (p *Plugin) handleHit(ctx *schemas.BifrostContext, s *runtime.State, res *schemas.BifrostResponse, cacheID string) (*schemas.BifrostResponse, *schemas.BifrostError, error) {
-	now := p.rt.Now(ctx)
+	now, clockErr := p.rt.Now(ctx, s.Tenant)
 
 	// Load manifest from Redis.
 	m, err := p.rt.Load(ctx, s.Tenant, cacheID)
-	if err != nil {
+	if err != nil || clockErr != nil || m.ContentHash != fmt.Sprintf("%x", sha256.Sum256([]byte(runtime.Text(res)))) {
 		d := decide.Unavailable(s.Policy)
 		s.Decision = string(d)
+		s.Annotation = map[string]any{"status": "unknown", "reason": "manifest_unavailable"}
+		if s.Shadow {
+			s.ShadowDecision, s.Decision = string(d), "passthrough"
+			p.recordHit(s, cacheID)
+			return res, nil, nil
+		}
+		p.recordHit(s, cacheID)
 		if d == decide.FailClosed {
 			return nil, runtime.Fail(), nil
 		}
-		s.Annotation = map[string]any{
-			"status": "unknown", "decision": string(d),
-			"cache": "hit", "reason": "no_manifest",
-		}
 		return res, nil, nil
 	}
 
-	// Increment hit count asynchronously.
-	go func() {
-		bgCtx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
-		defer cancel()
-		p.rt.Redis.HIncrBy(bgCtx, manifest.Key(s.Tenant, "manifest_hits", cacheID), "count", 1)
-	}()
-
-	// Semantic Hit Guard: inspect query signature against cached prompt signature
-	if s.GuardEnabled && s.Prompt != "" && (m.PromptText != "" || m.QuerySignature != "") {
-		inSig := guard.Extract(s.Prompt)
-		cachedPrompt := m.PromptText
-		cachedSig := guard.Extract(cachedPrompt)
-		if tripped, reason := guard.Check(inSig, cachedSig); tripped {
-			s.GuardTripped = true
-			s.GuardReason = reason
-			s.Decision = "guard_bypass"
-			s.Annotation = map[string]any{
-				"status":        "bypassed",
-				"decision":      "guard_bypass",
-				"reason":        reason,
-				"guard_tripped": true,
-			}
-			log.Printf("[cg-front] semantic guard tripped: %s (incoming: %q, cached: %q); bypassing cache", reason, s.Prompt, m.PromptText)
-
-			// Bypass cached response: regenerate fresh answer via provider
-			payload := map[string]any{
-				"tenant_id":   s.Tenant,
-				"cache_id":    cacheID,
-				"policy":      s.Policy.Name,
-				"deadline_ms": s.Policy.BlockingBudgetMS,
-				"reason":      "guard_bypass",
-				"force":       true,
-			}
-			deadline, cancel := context.WithTimeout(ctx, time.Duration(s.Policy.BlockingBudgetMS)*time.Millisecond)
-			defer cancel()
-			var result runtime.Result
-			if err := p.rt.Verifier.Post(deadline, "/internal/v1/revalidate", payload, &result); err == nil {
-				if result.Replacement != nil && result.Replacement.Text != "" {
-					runtime.Replace(res, result.Replacement.Text)
-				}
-			}
-
-			go func() {
-				bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-				defer cancel()
-				hitPayload := map[string]any{
-					"tenant_id":       s.Tenant,
-					"request_id":      s.ID,
-					"cache_id":        cacheID,
-					"origin":          "guard_bypassed",
-					"model_id":        s.Model,
-					"policy":          s.Policy.Name,
-					"prompt_class":    s.Class,
-					"cache_status":    "hit",
-					"decision":        "guard_bypass",
-					"guard_tripped":   true,
-					"guard_reason":    s.GuardReason,
-					"query_signature": s.QuerySignature,
-				}
-				_ = p.rt.Verifier.Post(bgCtx, "/internal/v1/record-hit", hitPayload, nil)
-			}()
-
-			return res, nil, nil
-		}
-	}
-
-	// Run pure-Go decision engine.
 	d := decide.Decide(m, s.Policy, now)
-
-	if s.Shadow {
-		s.ShadowDecision = string(d)
-		s.Decision = "passthrough"
-		s.ShadowReason = "shadow_mode_evaluation"
-		s.Annotation = manifestAnnotation(m, "shadow_passthrough")
-
-		if d == decide.SWR || d == decide.Regenerate || d == decide.EvictLazy || d == decide.Blocking {
-			go func() {
-				bgCtx, cancel := context.WithTimeout(context.Background(), time.Duration(s.Policy.RevalidateBudgetMS)*time.Millisecond)
-				defer cancel()
-				payload := map[string]any{
-					"tenant_id":   s.Tenant,
-					"cache_id":    cacheID,
-					"policy":      s.Policy.Name,
-					"deadline_ms": s.Policy.RevalidateBudgetMS,
-					"reason":      "shadow_revalidation",
-					"force":       false,
-				}
-				_ = p.rt.Verifier.Post(bgCtx, "/internal/v1/revalidate", payload, nil)
-			}()
+	if s.GuardEnabled && s.Prompt != "" {
+		if cached, ok := guard.Decode(m.QuerySignature); ok {
+			s.GuardTripped, s.GuardReason = guard.Check(guard.Extract(s.Prompt), cached)
+		} else if m.PromptText != "" {
+			s.GuardTripped, s.GuardReason = guard.Check(guard.Extract(s.Prompt), guard.Extract(m.PromptText))
+		} else {
+			s.GuardTripped, s.GuardReason = true, "missing_signature"
 		}
-
-		go func() {
-			bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-			defer cancel()
-			hitPayload := map[string]any{
-				"tenant_id":       s.Tenant,
-				"request_id":      s.ID,
-				"cache_id":        cacheID,
-				"origin":          "legacy_cache",
-				"model_id":        s.Model,
-				"policy":          s.Policy.Name,
-				"prompt_class":    s.Class,
-				"cache_status":    "hit",
-				"decision":        "passthrough",
-				"decision_shadow": s.ShadowDecision,
-				"shadow_reason":   s.ShadowReason,
-			}
-			_ = p.rt.Verifier.Post(bgCtx, "/internal/v1/record-hit", hitPayload, nil)
-		}()
-
+	}
+	if s.Shadow {
+		s.ShadowDecision, s.Decision = string(d), "passthrough"
+		if s.GuardTripped {
+			s.ShadowDecision = "guard_bypass"
+		}
+		s.ShadowReason = "shadow_mode_evaluation"
+		if m.Status == "stale" {
+			s.ShadowReason = "known_stale"
+		}
+		s.Annotation = manifestAnnotation(m, "shadow_passthrough")
+		p.recordHit(s, cacheID)
 		return res, nil, nil
+	}
+	defer p.recordHit(s, cacheID)
+	if s.GuardTripped {
+		return p.revalidate(ctx, s, res, cacheID, "guard_bypass", s.Policy.RegenBudgetMS)
 	}
 
 	s.Decision = string(d)
-
 	switch d {
 	case decide.Serve:
-		// Fresh: zero Tavily calls, zero upstream LLM calls.
 		s.Annotation = manifestAnnotation(m, "serve")
 		return res, nil, nil
 
@@ -376,57 +321,10 @@ func (p *Plugin) handleHit(ctx *schemas.BifrostContext, s *runtime.State, res *s
 		return res, nil, nil
 
 	case decide.Blocking:
-		// Strict revalidation: block and wait.
-		payload := map[string]any{
-			"tenant_id":   s.Tenant,
-			"cache_id":    cacheID,
-			"policy":      s.Policy.Name,
-			"deadline_ms": s.Policy.BlockingBudgetMS,
-			"reason":      "blocking_revalidation",
-			"force":       false,
-		}
-		deadline, cancel := context.WithTimeout(ctx, time.Duration(s.Policy.BlockingBudgetMS)*time.Millisecond)
-		defer cancel()
-		var result runtime.Result
-		if err := p.rt.Verifier.Post(deadline, "/internal/v1/revalidate", payload, &result); err != nil {
-			s.Decision = string(decide.FailClosed)
-			return nil, runtime.Fail(), nil
-		}
-		s.Annotation = result.Annotation
-		if result.Replacement != nil && result.Replacement.Text != "" {
-			runtime.Replace(res, result.Replacement.Text)
-		}
-		if !runtime.SafeAnnotation(result.Annotation) && s.Policy.Strictness == "strict" {
-			s.Decision = string(decide.FailClosed)
-			return nil, runtime.Fail(), nil
-		}
-		s.Decision = result.Decision
-		return res, nil, nil
+		return p.revalidate(ctx, s, res, cacheID, "blocking_revalidation", s.Policy.RegenBudgetMS)
 
 	case decide.Regenerate:
-		// Evict and regenerate with current evidence.
-		payload := map[string]any{
-			"tenant_id":   s.Tenant,
-			"cache_id":    cacheID,
-			"policy":      s.Policy.Name,
-			"deadline_ms": s.Policy.RevalidateBudgetMS,
-			"reason":      "evict_regen",
-			"force":       true,
-		}
-		deadline, cancel := context.WithTimeout(ctx, time.Duration(s.Policy.RevalidateBudgetMS)*time.Millisecond)
-		defer cancel()
-		var result runtime.Result
-		if err := p.rt.Verifier.Post(deadline, "/internal/v1/revalidate", payload, &result); err != nil {
-			s.Annotation = map[string]any{"status": "failed", "decision": "evict_regen", "reason": "regen_failed"}
-			s.Decision = string(decide.FailOpen)
-			return res, nil, nil
-		}
-		if result.Replacement != nil && result.Replacement.Text != "" {
-			runtime.Replace(res, result.Replacement.Text)
-			s.Decision = "regenerated"
-		}
-		s.Annotation = result.Annotation
-		return res, nil, nil
+		return p.revalidate(ctx, s, res, cacheID, "evict_regen", s.Policy.RegenBudgetMS)
 
 	case decide.EvictLazy:
 		s.Annotation = manifestAnnotation(m, "evict_lazy")
@@ -443,7 +341,7 @@ func (p *Plugin) handleHit(ctx *schemas.BifrostContext, s *runtime.State, res *s
 			}
 			_ = p.rt.Verifier.Post(bgCtx, "/internal/v1/revalidate", payload, nil)
 		}()
-		return res, nil, nil
+		return nil, runtime.Fail(), nil
 
 	case decide.FailClosed:
 		s.Annotation = map[string]any{"status": "blocked", "decision": "fail_closed", "reason": "policy_strict"}
@@ -455,6 +353,51 @@ func (p *Plugin) handleHit(ctx *schemas.BifrostContext, s *runtime.State, res *s
 	}
 
 	return res, nil, nil
+}
+
+func (p *Plugin) revalidate(ctx context.Context, s *runtime.State, res *schemas.BifrostResponse, cacheID, reason string, budget int) (*schemas.BifrostResponse, *schemas.BifrostError, error) {
+	deadline, cancel := context.WithTimeout(ctx, time.Duration(budget)*time.Millisecond)
+	defer cancel()
+	payload := map[string]any{
+		"tenant_id": s.Tenant, "cache_id": cacheID, "policy": s.Policy.Name,
+		"deadline_ms": budget, "reason": reason, "chat": s.Chat,
+	}
+	var result runtime.Result
+	err := p.rt.Verifier.Post(deadline, "/internal/v1/revalidate", payload, &result)
+	if err == nil && result.Status == "complete" && runtime.SafeAnnotation(result.Annotation) {
+		if result.Decision == "serve" && reason != "guard_bypass" {
+			s.Decision, s.Annotation = result.Decision, result.Annotation
+			return res, nil, nil
+		}
+		if result.Replacement != nil && strings.TrimSpace(result.Replacement.Text) != "" &&
+			(result.Decision == "regenerated" || result.Decision == "guard_bypass") {
+			runtime.Replace(res, result.Replacement)
+			s.Decision, s.Annotation = result.Decision, result.Annotation
+			return res, nil, nil
+		}
+	}
+	s.Decision = string(decide.FailClosed)
+	s.Annotation = map[string]any{"status": "unverified", "reason": reason}
+	return nil, runtime.Fail(), nil
+}
+
+func (p *Plugin) recordHit(s *runtime.State, cacheID string) {
+	payload := map[string]any{
+		"tenant_id": s.Tenant, "request_id": s.ID, "cache_id": cacheID, "model_id": s.Model,
+		"policy": s.Policy.Name, "prompt_class": s.Class, "decision": s.Decision,
+		"guard_tripped": s.GuardTripped, "guard_reason": s.GuardReason,
+		"query_signature": s.QuerySignature, "latency_ms": time.Since(s.Started).Milliseconds(),
+	}
+	if s.Shadow {
+		payload["decision_shadow"], payload["shadow_reason"] = s.ShadowDecision, s.ShadowReason
+	}
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		if err := p.rt.Verifier.Post(ctx, "/internal/v1/record-hit", payload, nil); err != nil {
+			log.Printf("[cg-front] record hit failed: %v", err)
+		}
+	}()
 }
 
 // HTTPTransportResponseHeadersHook sets x-cg-* response headers on the HTTP transport.
@@ -488,6 +431,9 @@ func (p *Plugin) HTTPTransportResponseHeadersHook(ctx *schemas.BifrostContext, r
 	if s.Cache != "" {
 		resp.Headers["x-cg-cache-id"] = s.Cache
 	}
+	if id, ok := s.Annotation["response_id"].(string); ok {
+		resp.Headers["x-cg-response-id"] = id
+	}
 
 	if s.Shadow {
 		resp.Headers["x-cg-shadow"] = "1"
@@ -498,7 +444,9 @@ func (p *Plugin) HTTPTransportResponseHeadersHook(ctx *schemas.BifrostContext, r
 
 	if s.GuardTripped {
 		resp.Headers["x-cg-guard"] = fmt.Sprintf("tripped; reason=%s", s.GuardReason)
-		resp.Headers["x-bf-cache-bypass"] = "1"
+		if s.Decision == "guard_bypass" {
+			resp.Headers["x-bf-cache-bypass"] = "1"
+		}
 	} else if s.GuardEnabled {
 		resp.Headers["x-cg-guard"] = "pass"
 	}
@@ -527,7 +475,9 @@ func (p *Plugin) HTTPTransportPostHook(ctx *schemas.BifrostContext, req *schemas
 		}
 		if s.GuardTripped {
 			resp.Headers["x-cg-guard"] = fmt.Sprintf("tripped; reason=%s", s.GuardReason)
-			resp.Headers["x-bf-cache-bypass"] = "1"
+			if s.Decision == "guard_bypass" {
+				resp.Headers["x-bf-cache-bypass"] = "1"
+			}
 		} else if s.GuardEnabled {
 			resp.Headers["x-cg-guard"] = "pass"
 		}
@@ -581,7 +531,7 @@ func extractMessages(req *schemas.BifrostRequest) []map[string]string {
 }
 
 func isCacheHit(ctx *schemas.BifrostContext, res *schemas.BifrostResponse) (bool, string) {
-	if cacheMeta, ok := schemas.CacheMetadataFromContext(ctx); ok && cacheMeta != nil {
+	if cacheMeta, ok := schemas.CacheLookupFromContext(ctx); ok && cacheMeta != nil {
 		id := ""
 		if cacheMeta.CacheID != nil {
 			id = *cacheMeta.CacheID
