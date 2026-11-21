@@ -1,4 +1,5 @@
 import math
+import re
 from datetime import datetime
 
 from app.schemas.contracts import Category, Evidence, Verdict
@@ -36,7 +37,10 @@ def invalidation_allowed(verdict: Verdict, evidence: list[Evidence]):
         return True, "official_contradiction"
     if len({e.domain for e in contradict if e.tier <= 2}) >= 2:
         return True, "independent_authoritative_contradictions"
-    if (verdict.confidence or 0) >= .9 and verdict.corrected_value and any(e.tier <= 2 and verdict.corrected_value in e.snippet for e in evidence):
+    if (verdict.confidence or 0) >= .9 and verdict.corrected_value and any(
+        e.tier <= 2 and re.search(r"(?<![\w.])" + re.escape(verdict.corrected_value) + r"(?![\w.]\w|\w)", e.snippet)
+        for e in contradict
+    ):
         return True, "high_confidence_verbatim_correction"
     return False, "evict_rule_unmet"
 
