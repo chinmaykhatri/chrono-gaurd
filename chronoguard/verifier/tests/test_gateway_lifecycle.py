@@ -180,6 +180,21 @@ async def test_fact_deduplication_zero_tavily(app):
     # Zero additional Tavily searches made! Instant Fact Ledger reuse!
     assert tavily.calls == 1
 
+    fact_id = (await app.state.repo.list(db.facts, "default"))["items"][0]["id"]
+    detail = await app.state.repo.fact_detail("default", fact_id)
+    assert len(detail["entries"]) == 2
+    assert detail["history"] and detail["evidence"][0]["url"] == evidence[0].url
+    assert await app.state.repo.fact_detail("other-tenant", fact_id) is None
+    claim_id = detail["history"][0]["claim_id"]
+    session_id = "fact-operator"
+    await app.state.redis.set("cg:session:" + digest(session_id),
+                              json.dumps({"tenant_id": "default", "authenticated": True, "csrf_token": "csrf"}))
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test",
+                           cookies={"cg_session": session_id}, headers={"Origin": "http://localhost:3000", "X-CSRF-Token": "csrf"}) as client:
+        for route in (f"facts/{fact_id}", f"claims/{claim_id}"):
+            checked = await client.post(f"/api/v1/{route}/reverify")
+            assert checked.status_code == 200, checked.text
+
 
 @pytest.mark.asyncio
 async def test_two_key_invalidation_and_cascade_to_manifests(app):
