@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import secrets
 import time
 from contextlib import asynccontextmanager
@@ -17,14 +18,14 @@ from pydantic import Field
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app import db
-from app.clients import ModelClient, TavilyClient
+from app.clients import DependencyUnavailable, ModelClient, TavilyClient
 from app.clock.service import Clock
 from app.config import Settings
 from app.eval_runner import eval_service
 from app.pipeline.budget import Buckets
 from app.pipeline.triage import prompt_class
 from app.pipeline.verify import Verifier
-from app.repository import Repository
+from app.repository import Repository, ledger_totals
 from app.schemas.contracts import (
     Category,
     Contract,
@@ -53,6 +54,7 @@ class PlaygroundChat(Contract):
     messages: list[Message] = Field(min_length=1, max_length=20)
     policy: Literal["strict", "standard", "lenient"] = "standard"
     cache: bool = True
+    stream: Literal[False] = False
 
 
 class DryRun(Contract):
@@ -84,22 +86,30 @@ async def run_jobs(app):
     """Consume queued verification jobs until the app shuts down."""
     while True:
         job = None
+        lease = None
         try:
             async with app.state.database.sessions.begin() as session:
+                cutoff = db.now() - timedelta(minutes=2)
+                expired = sa.and_(db.jobs.c.state == "running", db.jobs.c.locked_at < cutoff)
+                await session.execute(
+                    db.jobs.update().where(expired, db.jobs.c.attempts >= 3)
+                    .values(state="failed", payload=None, finished_at=db.now(), error_code="lease_expired")
+                )
                 job = (
                     await session.execute(
                         sa.select(db.jobs)
-                        .where(db.jobs.c.state == "queued")
+                        .where(sa.or_(db.jobs.c.state == "queued", expired), db.jobs.c.attempts < 3)
                         .order_by(db.jobs.c.created_at)
                         .limit(1)
                         .with_for_update(skip_locked=True)
                     )
                 ).mappings().one_or_none()
                 if job:
+                    lease = int(job["attempts"] or 0) + 1
                     await session.execute(
                         db.jobs.update()
                         .where(db.jobs.c.id == job["id"])
-                        .values(state="running", locked_at=db.now(), attempts=int(job["attempts"] or 0) + 1)
+                        .values(state="running", locked_at=db.now(), attempts=lease)
                     )
             if not job:
                 await asyncio.sleep(0.5)
@@ -113,21 +123,17 @@ async def run_jobs(app):
                 raise ValueError("response text unavailable")
             verifier = app.state.verifier
             policy = await verifier.policy(tenant, payload.get("policy", "standard"))
-            await verifier.verify_response(
-                tenant,
-                response_id,
-                text,
-                payload.get("prompt_class", "slow_facts"),
-                policy,
-                payload.get("model_id", ""),
-                int(payload.get("deadline_ms", 15000)),
-                payload.get("cache_id"),
-                trigger="async",
-            )
+            deadline_ms = int(payload.get("deadline_ms", 15000))
+            async with asyncio.timeout(deadline_ms / 1000):
+                await verifier.verify_response(
+                    tenant, response_id, text, payload.get("prompt_class", "slow_facts"),
+                    policy, payload.get("model_id", ""), deadline_ms, payload.get("cache_id"),
+                    trigger="async",
+                )
             async with app.state.database.sessions.begin() as session:
                 await session.execute(
                     db.jobs.update()
-                    .where(db.jobs.c.id == job["id"])
+                    .where(db.jobs.c.id == job["id"], db.jobs.c.attempts == lease)
                     .values(state="done", payload=None, finished_at=db.now(), error_code=None)
                 )
         except asyncio.CancelledError:
@@ -138,12 +144,34 @@ async def run_jobs(app):
                     async with app.state.database.sessions.begin() as session:
                         await session.execute(
                             db.jobs.update()
-                            .where(db.jobs.c.id == job["id"])
-                            .values(state="failed", payload=None, finished_at=db.now(), error_code="verification_failed")
+                            .where(db.jobs.c.id == job["id"], db.jobs.c.attempts == lease)
+                            .values(
+                                state="queued" if lease and lease < 3 else "failed",
+                                payload=job["payload"] if lease and lease < 3 else None,
+                                finished_at=None if lease and lease < 3 else db.now(),
+                                error_code="verification_failed",
+                            )
                         )
                 except Exception:
                     pass
             await asyncio.sleep(1)
+
+
+async def prune_content(app):
+    """Clear stored conversation content once its real-time retention expires."""
+    while True:
+        cutoff = db.now() - timedelta(days=app.state.settings.retention_days)
+        try:
+            async with app.state.database.sessions.begin() as session:
+                await session.execute(db.requests.update().where(
+                    db.requests.c.created_at < cutoff, db.requests.c.messages.is_not(None),
+                ).values(messages=sa.null()))
+                await session.execute(db.responses.update().where(
+                    db.responses.c.created_at < cutoff, db.responses.c.content.is_not(None),
+                ).values(content=None))
+        except sa.exc.SQLAlchemyError:
+            logging.warning("Content retention pass failed")
+        await asyncio.sleep(3600)
 
 
 def create_app(settings: Settings | None = None, database=None, redis_client=None):
@@ -152,35 +180,6 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         cfg = settings or Settings()
         app.state.settings = cfg
         app.state.database = database or db.Database(cfg.database_url.get_secret_value())
-        try:
-            async with app.state.database.engine.begin() as conn:
-                for col_sql in [
-                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS decision_shadow VARCHAR(32)",
-                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS shadow_reason TEXT",
-                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS guard_tripped BOOLEAN DEFAULT FALSE",
-                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS guard_reason VARCHAR(64)",
-                    "ALTER TABLE requests ADD COLUMN IF NOT EXISTS query_signature TEXT",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS source_urls JSONB DEFAULT '[]'::jsonb",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS source_text_hash VARCHAR(64)",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS window_hash VARCHAR(64)",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS last_extracted_at TIMESTAMP WITH TIME ZONE",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS delta_confirmed BOOLEAN DEFAULT FALSE",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS delta_saved_credits FLOAT DEFAULT 0.0",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS n_checks INTEGER DEFAULT 1",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS n_changed INTEGER DEFAULT 0",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS query_hits INTEGER DEFAULT 0",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS lambda_hat FLOAT DEFAULT 0.0",
-                    "ALTER TABLE facts ADD COLUMN IF NOT EXISTS optimal_interval_s INTEGER",
-                    "ALTER TABLE claims ADD COLUMN IF NOT EXISTS source_urls JSONB DEFAULT '[]'::jsonb",
-                    "ALTER TABLE claims ADD COLUMN IF NOT EXISTS source_text_hash VARCHAR(64)",
-                    "ALTER TABLE claims ADD COLUMN IF NOT EXISTS delta_confirmed BOOLEAN DEFAULT FALSE",
-                ]:
-                    try:
-                        await conn.execute(sa.text(col_sql))
-                    except Exception:
-                        pass
-        except Exception:
-            pass
         app.state.redis = redis_client or redis.from_url(cfg.redis_url.get_secret_value(), decode_responses=True, socket_timeout=2, socket_connect_timeout=2)
         app.state.repo = Repository(app.state.database)
         app.state.http = httpx.AsyncClient(follow_redirects=False, trust_env=False)
@@ -198,7 +197,12 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             app.state.buckets,
         )
         await app.state.repo.seed(cfg.tenant_id)
+        policies = await app.state.repo.list(db.policies, cfg.tenant_id)
+        for row in policies["items"]:
+            policy = Policy.model_validate({field: row[field] for field in Policy.model_fields if field in row})
+            await app.state.redis.set(key(cfg.tenant_id, "policy", policy.name), policy.model_dump_json())
         workers = [asyncio.create_task(run_jobs(app)) for _ in range(max(1, min(4, cfg.workers)))]
+        workers.append(asyncio.create_task(prune_content(app)))
         try:
             yield
         finally:
@@ -221,14 +225,15 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request, error):
-        import logging
-        logging.error("Validation error details: %s", error.errors())
+        logging.warning("Request validation failed for %s", request.url.path)
         # Pydantic errors include input values by default; never return passwords/prompts.
         return JSONResponse({"error":{"code":"validation_error","message":"Request does not match the API schema", "details":[{"loc":e["loc"],"type":e["type"]} for e in error.errors()]}}, status_code=422)
 
-    @app.exception_handler(Exception)
+    @app.exception_handler(DependencyUnavailable)
+    @app.exception_handler(TimeoutError)
     async def unavailable(request, error):
-        return JSONResponse({"error":{"code":"upstream_unavailable","message":"A required service is unavailable"}}, status_code=503)
+        code = str(error) if isinstance(error, DependencyUnavailable) else "verification_deadline"
+        return JSONResponse({"error":{"code":code,"message":"Verification could not complete."}}, status_code=503)
 
     @app.get("/healthz")
     async def health():
@@ -272,7 +277,9 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
 
     @app.post("/internal/v1/ingest", status_code=202, dependencies=[Depends(require_internal)])
     async def ingest(body: Ingest, request: Request):
-        response_id, _ = await request.app.state.repo.ingest(body, request.app.state.settings.store_content)
+        observe_only = body.decision_shadow == "observe"
+        response_id, _ = await request.app.state.repo.ingest(body, request.app.state.settings.store_content and not observe_only,
+                                                              queue=not observe_only)
         # The durable job is queued transactionally with the response. A worker
         # claims it before verification starts, so a lost worker leaves a
         # retryable queued job rather than a silent failure.
@@ -283,31 +290,91 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         response_id, _ = await request.app.state.repo.ingest(body, request.app.state.settings.store_content, queue=False)
         verifier = request.app.state.verifier
         policy = await verifier.policy(body.tenant_id, body.policy)
-        annotation, _, _ = await verifier.verify_response(
-            body.tenant_id,
-            response_id,
-            body.response_text,
-            body.prompt_class.value if hasattr(body.prompt_class, "value") else str(body.prompt_class),
-            policy,
-            body.model_id,
-            body.deadline_ms,
-            body.cache_id,
-            trigger="inline",
-        )
-        return {
+        async with asyncio.timeout(body.deadline_ms / 1000):
+            annotation, outcomes, _ = await verifier.verify_response(
+                body.tenant_id, response_id, body.response_text, body.prompt_class.value,
+                policy, body.model_id, body.deadline_ms, body.cache_id, trigger="inline",
+            )
+        result = {
             "response_id": response_id,
             "status": annotation.get("status", "partial"),
             "annotation": annotation,
-            "repaired_text": None,
         }
+        stale = [outcome for outcome in outcomes if outcome.status == "stale"]
+        if body.chat and stale and all(item.corrected_value for item in stale) and policy.regen_on_stale:
+            grounding = {
+                "facts": [{"fact_key": item.fact_key, "new_value": item.corrected_value} for item in stale],
+                "evidence": {item.fact_key: [source.model_dump(mode="json") for source in item.evidence] for item in stale},
+            }
+            async with asyncio.timeout(policy.regen_budget_ms / 1000):
+                if body.cache_id:
+                    await request.app.state.models.evict(body.cache_id)
+                return await reissue(request.app.state, body, policy, result, grounding)
+        return result
 
     @app.post("/internal/v1/revalidate", dependencies=[Depends(require_internal)])
     async def revalidate(body: Revalidate, request: Request):
-        verifier = request.app.state.verifier
+        state = request.app.state
+        verifier = state.verifier
         policy = await verifier.policy(body.tenant_id, body.policy)
-        return await verifier.revalidate(
-            body.tenant_id, body.cache_id, policy, body.deadline_ms, body.reason, body.force
+        async with asyncio.timeout(body.deadline_ms / 1000):
+            if body.reason == "guard_bypass":
+                result = {"status": "complete", "decision": "guard_bypass", "replacement": None, "annotation": None}
+                return await reissue(state, body, policy, result, None)
+
+            result = await verifier.revalidate(
+                body.tenant_id, body.cache_id, policy, body.deadline_ms, body.reason, body.force
+            )
+            replacement = result.get("replacement")
+            if result["decision"] == "evict_lazy":
+                await state.models.evict(body.cache_id)
+            if body.chat and replacement and result["decision"] == "evict_regen":
+                raw = await state.redis.get(key(body.tenant_id, "ground", replacement["ground_id"]))
+                if not raw:
+                    raise DependencyUnavailable("grounding_missing")
+                grounding = json.loads(raw)
+                await state.models.evict(body.cache_id)
+                return await reissue(state, body, policy, result, grounding)
+            return result
+
+    async def reissue(state, body, policy, result, grounding):
+        if not body.chat:
+            raise DependencyUnavailable("missing_original_chat")
+        completion = await state.models.regenerate(body.chat, grounding)
+        text = completion["choices"][0]["message"]["content"]
+        messages = body.chat["messages"]
+        prompt = next((message["content"] for message in reversed(messages) if message["role"] == "user"), "")
+        usage = completion.get("usage") or {}
+        ingest = Ingest(
+            tenant_id=body.tenant_id,
+            request_id=secrets.token_hex(16),
+            origin="regenerated" if grounding else "guard_bypassed",
+            model_id=body.chat["model"],
+            messages=messages[-6:],
+            response_text=text,
+            usage={"input_tokens": usage.get("prompt_tokens") or 0, "output_tokens": usage.get("completion_tokens") or 0},
+            prompt_class=prompt_class(prompt),
+            policy=policy.name,
         )
+        response_id, _ = await state.repo.ingest(ingest, state.settings.store_content, queue=False)
+        annotation, outcomes, _ = await state.verifier.verify_response(
+            body.tenant_id, response_id, text, ingest.prompt_class.value, policy, ingest.model_id,
+            body.deadline_ms, None, trigger="inline",
+        )
+        if annotation["status"] != "complete" or any(o.status not in ("fresh", "skipped") for o in outcomes):
+            raise DependencyUnavailable("replacement_unverified")
+        if grounding:
+            required = {fact["fact_key"] for fact in grounding["facts"]}
+            confirmed = {o.fact_key for o in outcomes if o.status == "fresh"}
+            if not required or not required <= confirmed:
+                raise DependencyUnavailable("replacement_missing_repaired_claim")
+        annotation["decision"] = "regenerated" if grounding else "guard_bypass"
+        return {
+            **result, "status": "complete", "decision": annotation["decision"], "response_id": response_id,
+            "annotation": annotation,
+            "replacement": {"text": text, "id": completion.get("id", ""), "model": completion.get("model", ingest.model_id),
+                            "created": completion.get("created", 0), "usage": usage or None},
+        }
 
     @app.post("/internal/v1/record-hit", dependencies=[Depends(require_internal)])
     async def record_hit_endpoint(body: RecordHit, request: Request):
@@ -326,6 +393,17 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             query_signature=body.query_signature,
             latency_ms=body.latency_ms,
         )
+        raw = await request.app.state.redis.get(key(body.tenant_id, "manifest", body.cache_id))
+        if raw:
+            claims = json.loads(raw).get("claims", [])
+            fact_hashes = {claim["fact_key_hash"] for claim in claims if claim.get("fact_key_hash") and claim.get("class") != "static"}
+            if fact_hashes:
+                async with request.app.state.redis.pipeline() as pipe:
+                    for fact_hash in fact_hashes:
+                        identity = key(body.tenant_id, "fact_hits", fact_hash)
+                        pipe.incr(identity)
+                        pipe.expire(identity, 7 * 86400)
+                    await pipe.execute()
         return {"ok": True, "request_id": req_id}
 
     @app.get("/api/v1/settings/health")
@@ -363,13 +441,8 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
 
     @app.post("/api/v1/system/probe")
     async def system_probe(request: Request, session=Depends(require_session)):
-        """Automated end-to-end invalidation probe.
-        
-        Verifies real Redis reverse indexation (SADD) and cascade invalidation
-        without mocking. Measures actual latency in milliseconds and ensures
-        all ephemeral probe artifacts are cleanly reaped.
-        """
-        tenant = session["tenant_id"]
+        """Exercise the Redis reverse index with an isolated synthetic claim."""
+        tenant = session["tenant_id"] + ":probe"
         probe_id = "probe-" + secrets.token_hex(6)
         fact_key_name = f"software_versions:probe-kernel:{probe_id}"
         fact_h = digest(fact_key_name)
@@ -460,16 +533,7 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
                 "ok": cascade_ok,
             })
 
-            # Step 4: Verify Decision Alignment
-            s4_start = time.perf_counter()
-            steps.append({
-                "step": "decision_alignment",
-                "detail": "Decision engine marked evict_regen for stale manifest",
-                "latency_ms": round((time.perf_counter() - s4_start) * 1000, 2),
-                "ok": True,
-            })
-
-            # Step 5: Clean up all ephemeral probe keys
+            # Step 4: Delete the synthetic keys.
             s5_start = time.perf_counter()
             await request.app.state.redis.delete(manifest_k)
             await request.app.state.redis.srem(idx_k, probe_id)
@@ -487,13 +551,14 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
                 "status": "verified" if all(s["ok"] for s in steps) else "failed",
                 "probe_latency_ms": total_elapsed,
                 "probe_id": probe_id,
+                "provenance": "isolated_redis_probe",
                 "steps": steps,
             }
-        except Exception as e:
+        except Exception:
             return JSONResponse({
                 "ok": False,
                 "status": "failed",
-                "error": str(e),
+                "error": "probe_failed",
                 "probe_latency_ms": round((time.perf_counter() - started_all) * 1000, 2),
                 "steps": steps,
             }, status_code=500)
@@ -538,6 +603,8 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
                 repo = request.app.state.repo
                 if table is db.cache_entries:
                     row = await repo.cache_entry(session["tenant_id"], identity)
+                elif table is db.facts:
+                    row = await repo.fact_detail(session["tenant_id"], identity)
                 else:
                     row = await repo.get(table,session["tenant_id"],identity)
                 if row is None:
@@ -557,11 +624,15 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
     @app.put("/api/v1/policies/{identity}")
     async def update_policy(identity: str, body: Policy, request: Request, session=Depends(require_session)):
         tenant = session["tenant_id"]
+        if body.name == "strict" and (body.strictness != "strict" or body.mode != "verify_before_return" or body.on_unverifiable != "fail_closed"):
+            raise HTTPException(422, "strict_policy_must_block")
         async with request.app.state.database.sessions.begin() as transaction:
-            result = await transaction.execute(db.policies.update().where(db.policies.c.tenant_id==tenant, db.policies.c.id==identity).values(config=body.model_dump()))
+            result = await transaction.execute(db.policies.update().where(db.policies.c.tenant_id==tenant, db.policies.c.id==identity,
+                                                                          db.policies.c.name == body.name).values(config=body.model_dump()))
             if result.rowcount != 1:
                 raise HTTPException(404,"not_found")
             await request.app.state.repo.event(tenant,"policy.updated",{"policy_id":identity},transaction)
+        await request.app.state.redis.set(key(tenant, "policy", body.name), body.model_dump_json())
         return {"id":identity,**body.model_dump()}
 
     @app.get("/api/v1/clock")
@@ -611,12 +682,10 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
     @app.post("/api/v1/eval/runs")
     async def create_eval_run(request: Request, session=Depends(require_session)):
         body = await request.json()
-        dataset_id = body.get("dataset_id", "stalebench-mini")
-        variants = body.get("variants", ["B0", "B3", "CG_full"])
-        model = body.get("model", "gpt-4o")
-        concurrency = body.get("concurrency", 8)
-        run = eval_service.create_run(dataset_id, variants, model, concurrency)
-        return run
+        try:
+            return await asyncio.to_thread(eval_service.create_run, body.get("dataset_id", "release-replay"))
+        except ValueError:
+            raise HTTPException(422, "dataset_replay_unavailable") from None
 
     @app.get("/api/v1/eval/runs/{identity}")
     async def get_eval_run(identity: str, session=Depends(require_session)):
@@ -662,7 +731,6 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             statuses[row["status"]] = statuses.get(row["status"], 0) + 1
         credits = sum(row["units"] for row in ledger if row["kind"] == "tavily_credits")
         tokens_saved = [row["units"] for row in ledger if row["kind"] == "tokens_saved"]
-        usd = [row["usd"] for row in ledger if row["usd"] is not None]
         # Bucket in Python so SQLite and PostgreSQL produce the same chart.
         buckets: dict[str, dict] = {}
         for row in requests:
@@ -676,11 +744,11 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         return {
             "window": window,
             "requests": total,
-            "stale_prevented": decisions.get("evict_regen", 0) + decisions.get("evict_lazy", 0),
+            "stale_prevented": decisions.get("regenerated", 0),
             "hit_rate": (hits / total) if total else None,
             "tokens_saved": sum(tokens_saved) if tokens_saved else None,
             "tavily_credits": credits if credits else 0,
-            "net_usd": sum(usd) if usd else None,
+            "net_usd": ledger_totals(ledger)["net_usd"],
             "hook_overhead_p99_us": percentile([row["hook_overhead_us"] for row in requests], 0.99),
             "decisions": decisions,
             "entry_status": statuses,
@@ -711,16 +779,14 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         hits = [r for r in req_rows if r["cache_status"] in ("hit_direct", "hit_semantic", "hit")]
         hit_rate = (len(hits) / total_requests) if total_requests > 0 else 0.0
 
-        stale_shadow_decisions = ("evict_regen", "evict_lazy", "fail_closed")
-        stale_would_have_served = sum(
-            1 for r in req_rows
-            if r.get("decision_shadow") in stale_shadow_decisions
-            or (r.get("cache_status") in ("hit_direct", "hit_semantic", "hit") and r.get("decision") in stale_shadow_decisions)
-        )
-
+        shadow_stale_hits = sum(row.get("shadow_reason") == "known_stale" for row in hits)
+        blocked_hits = sum(row.get("decision") == "fail_closed" for row in hits)
+        repaired_hits = sum(row.get("decision") == "regenerated" for row in hits)
         entries_at_risk = 0
         for entry in cache_rows:
-            if entry.get("status") in ("stale", "expired", "evicted"):
+            if entry.get("status") == "evicted":
+                continue
+            if entry.get("status") in ("stale", "expired"):
                 entries_at_risk += 1
             else:
                 m = entry.get("manifest") or {}
@@ -729,7 +795,8 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
 
         stale_facts_list = []
         for fact in fact_rows:
-            if fact.get("last_verdict") in ("outdated", "unsupported") or fact.get("current_value") != (fact.get("ledger") or {}).get("initial_value"):
+            initial_value = (fact.get("ledger") or {}).get("initial_value")
+            if fact.get("last_verdict") in ("outdated", "contradicted") or (initial_value and fact.get("current_value") != initial_value):
                 f_hash = fact.get("fact_hash")
                 entries_count = sum(
                     1 for e in cache_rows
@@ -742,53 +809,32 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
                     "cached_value": initial_val,
                     "current_value": fact.get("current_value"),
                     "last_verdict": fact.get("last_verdict") or "outdated",
-                    "entries_affected": max(1, entries_count),
-                    "hits": fact.get("revision", 1),
+                    "entries_affected": entries_count,
+                    "hits": fact.get("query_hits") or 0,
                 })
         stale_facts_list.sort(key=lambda x: (x["entries_affected"], x["hits"]), reverse=True)
         top_stale_facts = stale_facts_list[:10]
 
         live_tavily_credits = sum(r["units"] for r in ledger_rows if r["kind"] == "tavily_credits")
-        live_usd_costs = sum(r["usd"] for r in ledger_rows if r["usd"] is not None)
-        verification_cost_usd = round(live_usd_costs, 4)
-
-        estimated_stale_remediation_usd = stale_would_have_served * 0.035
-        estimated_token_savings_usd = len(hits) * 0.0025
-        projected_gross_savings_usd = round(estimated_stale_remediation_usd + estimated_token_savings_usd, 4)
-        net_savings_usd = round(projected_gross_savings_usd - verification_cost_usd, 4)
-
-        if stale_would_have_served > 0:
-            recommendation = (
-                f"Shadow mode detected {stale_would_have_served} stale cached response(s) that would have been served to users without ChronoGuard. "
-                f"Active invalidation is projected to save ${net_savings_usd:.4f} USD net freshness value with {entries_at_risk} entries currently at risk. "
-                f"Recommendation: Enable active invalidation (standard policy)."
-            )
-        elif entries_at_risk > 0:
-            recommendation = (
-                f"{entries_at_risk} cache entry(ies) currently hold outdated claims. Although no user has hit them in this window, "
-                f"enabling active invalidation will prevent stale drift before hits occur."
-            )
-        else:
-            recommendation = (
-                f"All {len(cache_rows)} cache entries and observed requests are fresh. "
-                f"Recommendation: Continue shadow monitoring until volatility events trigger."
-            )
-
+        spent = [row for row in ledger_rows if row["kind"] in ("tavily_credits", "llm_tokens")]
+        cost_usd = round(sum(row["usd"] for row in spent), 4) if spent and all(row["usd"] is not None for row in spent) else None
+        recommendation = (
+            f"Observed {repaired_hits} verified repairs, {blocked_hits} verification blocks, "
+            f"and {shadow_stale_hits} shadow hits on known-stale manifests."
+        )
         return {
             "window": window,
             "requests_observed": total_requests,
             "hit_rate": round(hit_rate, 4),
-            "stale_would_have_served": stale_would_have_served,
+            "stale_would_have_served": shadow_stale_hits,
+            "blocked_hits": blocked_hits,
+            "repaired_hits": repaired_hits,
             "entries_at_risk": entries_at_risk,
             "top_stale_facts": top_stale_facts,
             "costs": {
-                "verification_cost_usd": verification_cost_usd,
-                "verification_cost_label": "LIVE",
+                "verification_cost_usd": cost_usd,
+                "verification_cost_label": "recorded" if cost_usd is not None else "unpriced",
                 "tavily_credits": live_tavily_credits,
-                "projected_savings_usd": projected_gross_savings_usd,
-                "projected_savings_label": "SIMULATED",
-                "net_projected_usd": net_savings_usd,
-                "net_projected_label": "SIMULATED",
             },
             "recommendation": recommendation,
             "shadow_enabled": request.app.state.settings.shadow_enabled,
@@ -883,13 +929,14 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
     async def cache_evict(identity: str, request: Request, session=Depends(require_session)):
         tenant = session["tenant_id"]
         row = await cache_row(request, tenant, identity)
+        await request.app.state.models.evict(row["bifrost_cache_id"])
         manifest = dict(row.get("manifest") or {})
         manifest["status"] = "evicted"
         manifest["rev"] = int(manifest.get("rev") or 0) + 1
         async with request.app.state.database.sessions.begin() as transaction:
             await transaction.execute(db.cache_entries.update().where(db.cache_entries.c.tenant_id == tenant, db.cache_entries.c.id == identity).values(status="evicted", manifest=manifest, manifest_rev=manifest["rev"]))
             await request.app.state.repo.event(tenant, "entry.evicted", {"cache_entry_id": identity, "reason": "manual"}, transaction)
-        await request.app.state.redis.delete(key(tenant, "manifest", row["bifrost_cache_id"]))
+        await request.app.state.redis.set(key(tenant, "manifest", row["bifrost_cache_id"]), json.dumps(manifest), ex=3600)
         for claim in manifest.get("claims", []):
             fhash = claim.get("fact_key_hash") or digest(claim.get("fact_key", ""))
             if fhash:
@@ -905,17 +952,26 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             await request.app.state.repo.event(tenant, "entry.pinned", {"cache_entry_id": identity, "pinned": body.pinned}, transaction)
         return {"ok": True, "pinned": body.pinned}
 
+    async def reverify_fact_entry(request, tenant, fact_id, cache_id=None):
+        query = request.app.state.repo.fact_entry_query(tenant, fact_id).where(db.cache_entries.c.status != "evicted")
+        if cache_id is not None:
+            query = query.where(db.cache_entries.c.bifrost_cache_id == cache_id)
+        async with request.app.state.database.sessions() as transaction:
+            entry = (await transaction.execute(query.order_by(db.cache_entries.c.created_at.desc(), db.cache_entries.c.id).limit(1))).mappings().first()
+        if entry is None:
+            raise HTTPException(409, "no_verifiable_entry")
+        policy = await request.app.state.verifier.policy(tenant, (entry["manifest"] or {}).get("policy", "standard"))
+        return await request.app.state.verifier.revalidate(tenant, entry["bifrost_cache_id"], policy, 15000, "manual", True)
+
     @app.post("/api/v1/claims/{identity}/reverify")
     async def claim_reverify(identity: str, request: Request, session=Depends(require_session)):
         tenant = session["tenant_id"]
         claim = await request.app.state.repo.get(db.claims, tenant, identity)
         if claim is None:
             raise HTTPException(404, "not_found")
-        entry = await request.app.state.repo.get(db.cache_entries, tenant, claim["cache_id"]) if claim.get("cache_id") else None
-        if entry is None:
-            raise HTTPException(409, "no_cache_entry")
-        policy = await request.app.state.verifier.policy(tenant, (entry.get("manifest") or {}).get("policy", "standard"))
-        return await request.app.state.verifier.revalidate(tenant, entry["bifrost_cache_id"], policy, 15000, "manual", True)
+        if not claim.get("cache_id") or not claim.get("fact_id"):
+            raise HTTPException(409, "no_verifiable_entry")
+        return await reverify_fact_entry(request, tenant, claim["fact_id"], claim["cache_id"])
 
     @app.post("/api/v1/claims/{identity}/review")
     async def claim_review(identity: str, request: Request, session=Depends(require_session)):
@@ -934,15 +990,7 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         fact = await request.app.state.repo.get(db.facts, tenant, identity)
         if fact is None:
             raise HTTPException(404, "not_found")
-        async with request.app.state.database.sessions() as transaction:
-            claim = (await transaction.execute(sa.select(db.claims).where(db.claims.c.tenant_id == tenant, db.claims.c.fact_id == identity).limit(1))).mappings().one_or_none()
-        if claim is None or not claim.get("cache_id"):
-            raise HTTPException(409, "no_verifiable_entry")
-        entry = await request.app.state.repo.get(db.cache_entries, tenant, claim["cache_id"])
-        if entry is None:
-            raise HTTPException(409, "no_cache_entry")
-        policy = await request.app.state.verifier.policy(tenant, (entry.get("manifest") or {}).get("policy", "standard"))
-        return await request.app.state.verifier.revalidate(tenant, entry["bifrost_cache_id"], policy, 15000, "manual", True)
+        return await reverify_fact_entry(request, tenant, identity)
 
     # ----- playground gateway proxy --------------------------------------
 
@@ -954,84 +1002,42 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         if settings.bifrost_api_key.get_secret_value():
             headers["Authorization"] = "Bearer " + settings.bifrost_api_key.get_secret_value()
         headers["x-cg-policy"] = body.policy
+        if settings.guard_enabled:
+            headers["x-cg-guard"] = "1"
         shadow_header = request.headers.get("x-cg-shadow", "")
         is_shadow = shadow_header in ("1", "true") or settings.shadow_enabled
         if is_shadow:
             headers["x-cg-shadow"] = "1"
         if body.cache:
             headers["x-bf-cache-key"] = "cg-console-" + tenant
-        outgoing = {"model": body.model, "stream": False, "messages": [m.model_dump() for m in body.messages]}
+        else:
+            headers["x-bf-cache-type"] = "off"
+            headers["x-bf-cache-no-store"] = "true"
+        outgoing = {"model": body.model, "stream": body.stream, "messages": [m.model_dump() for m in body.messages]}
         try:
             upstream = await request.app.state.http.post(settings.bifrost_url.rstrip("/") + "/v1/chat/completions", json=outgoing, headers=headers, timeout=45)
+            if upstream.status_code == 503 and "chronoguard_unverifiable" in upstream.text:
+                raise HTTPException(503, "chronoguard_unverifiable")
             upstream.raise_for_status()
             data = upstream.json()
             text = data["choices"][0]["message"]["content"]
         except (httpx.HTTPError, KeyError, IndexError, ValueError):
             raise HTTPException(503, "bifrost_unavailable") from None
-        cache_id = upstream.headers.get("x-bifrost-cache-id")
+        cache_id = upstream.headers.get("x-cg-cache-id") or upstream.headers.get("x-bifrost-cache-id")
         cache_hit = upstream.headers.get("x-bifrost-cache-hit", "").lower() == "true"
-        req_id = upstream.headers.get("x-bifrost-request-id") or __import__("uuid").uuid4().hex
-        if cache_hit and cache_id:
-            raw = await request.app.state.redis.get(key(tenant, "manifest", cache_id))
-            if raw:
-                m = json.loads(raw)
-                annotation = request.app.state.verifier._manifest_annotation(m)
-                shadow_decision = None
-                if is_shadow:
-                    if m.get("status") == "stale":
-                        shadow_decision = "evict_regen" if body.policy == "strict" else "evict_lazy"
-                    elif m.get("status") == "due":
-                        shadow_decision = "revalidate_blocking" if body.policy == "strict" else "serve_swr"
-                    else:
-                        shadow_decision = "serve"
-                    decision_applied = "passthrough"
-                    annotation.update(cache="hit", decision=decision_applied, decision_shadow=shadow_decision, shadow_mode=True)
-                else:
-                    decision_applied = "serve"
-                    annotation.update(cache="hit", decision=decision_applied)
-
-                await request.app.state.repo.record_hit(
-                    tenant=tenant,
-                    request_id=req_id,
-                    model_id=body.model,
-                    cache_id=cache_id,
-                    policy=body.policy,
-                    prompt_class=prompt_class(body.messages[-1].content).value,
-                    decision=decision_applied,
-                    decision_shadow=shadow_decision,
-                    shadow_reason="shadow_playground_evaluation" if is_shadow else None,
-                )
-                return {"text": text, "response_id": annotation.get("response_id"), "annotation": annotation, "cache_hit": True, "cache_id": cache_id, "headers": dict(upstream.headers), "trace_id": upstream.headers.get("x-bifrost-trace-id")}
-        usage = data.get("usage") or {}
-        ingest = Ingest(
-            tenant_id=tenant,
-            request_id=req_id,
-            cache_id=cache_id,
-            origin="provider",
-            model_id=body.model,
-            provider="",
-            messages=body.messages[-6:],
-            response_text=text,
-            usage={"input_tokens": int(usage.get("prompt_tokens", 0)), "output_tokens": int(usage.get("completion_tokens", 0))},
-            prompt_class=prompt_class(body.messages[-1].content),
-            policy=body.policy,
-            deadline_ms=15000 if body.policy == "strict" else 30000,
-            decision_shadow="passthrough" if is_shadow else None,
-            shadow_reason="shadow_mode_evaluation" if is_shadow else None,
-        )
-        response_id, _ = await request.app.state.repo.ingest(
-            ingest, settings.store_content, queue=body.policy != "strict"
-        )
-        annotation = None
-        if body.policy == "strict":
-            policy = await request.app.state.verifier.policy(tenant, body.policy)
-            annotation, _, _ = await request.app.state.verifier.verify_response(
-                tenant, response_id, text, ingest.prompt_class.value if hasattr(ingest.prompt_class, "value") else str(ingest.prompt_class), policy, body.model, 15000, cache_id, trigger="inline"
-            )
-        else:
-            response = await request.app.state.repo.get(db.responses, tenant, response_id)
-            annotation = response["annotation"] if response else None
-        return {"text": text, "response_id": response_id, "annotation": annotation, "cache_hit": cache_hit, "cache_id": cache_id, "headers": dict(upstream.headers), "trace_id": upstream.headers.get("x-bifrost-trace-id")}
+        decision = upstream.headers.get("x-cg-decision")
+        if body.policy == "strict" and decision not in ("serve", "passthrough", "regenerated", "guard_bypass"):
+            raise HTTPException(503, "gateway_verification_unavailable")
+        response_id = upstream.headers.get("x-cg-response-id")
+        annotation = await request.app.state.repo.annotation(tenant, response_id) if response_id else None
+        if annotation:
+            cache_outcome = "candidate replaced" if cache_hit and decision in ("regenerated", "guard_bypass") else "hit" if cache_hit else "miss"
+            annotation = {**annotation, "decision": decision, "cache": cache_outcome}
+        return {
+            "text": text, "response_id": response_id, "annotation": annotation,
+            "cache_hit": cache_hit, "cache_id": cache_id, "headers": dict(upstream.headers),
+            "trace_id": upstream.headers.get("x-bifrost-trace-id"),
+        }
 
     @app.get("/api/v1/events/stream")
     async def stream(request: Request, session=Depends(require_session)):
