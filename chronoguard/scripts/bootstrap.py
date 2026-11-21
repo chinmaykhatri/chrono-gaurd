@@ -19,13 +19,13 @@ def main() -> None:
             names[key.strip()] = value.strip().strip("'\"")
     defaults = {
         'CG_ENVIRONMENT': 'development',
-        'CG_CONSOLE_ORIGIN': 'http://localhost:3000',
+        'CG_CONSOLE_ORIGIN': 'http://localhost:8080',
         'CG_INTERNAL_KEY': secrets.token_urlsafe(48),
         'CG_SESSION_SECRET': secrets.token_urlsafe(48),
         'POSTGRES_PASSWORD': secrets.token_urlsafe(32),
         'REDIS_PASSWORD': secrets.token_urlsafe(32),
         'CG_STORE_CONTENT': 'false',
-        'CG_ALLOW_SIMULATED_CLOCK': 'true',
+        'CG_ALLOW_SIMULATED_CLOCK': 'false',
         'CG_RETENTION_DAYS': '7',
     }
     if not names.get('CG_ADMIN_PASSWORD_HASH'):
