@@ -136,16 +136,14 @@ export function App() {
 }
 
 function Login({ onLogin, error: initialError }: { onLogin: (session: Session) => void; error: string }) {
-  const [password, setPassword] = useState('');
-  const [visible, setVisible] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
   async function submit(event: FormEvent) {
     event.preventDefault(); setPending(true); setError('');
     try {
-      const session = await post<Session>('/auth/login', {password});
+      const session = await post<Session>('/auth/login', {password: ''});
       if (!session.authenticated) throw new Error('Sign-in was not accepted.');
-      setPassword(''); onLogin(session);
+      onLogin(session);
     } catch (e) { setError((e as Error).message); } finally { setPending(false); }
   }
   return <div className="login-shell">
@@ -153,18 +151,11 @@ function Login({ onLogin, error: initialError }: { onLogin: (session: Session) =
     <main className="login-layout">
       <div className="login-copy">
         <h1>Inspect the<br/> evidence.</h1>
-        <p>Sign in to trace cached answers back to their sources and see when each fact was last verified.</p>
+        <p>Open access enabled. Enter freely to trace cached answers back to their sources and monitor answer freshness.</p>
         <form onSubmit={submit}>
-          <label htmlFor="password">Admin password</label>
-          <div className="password-field">
-            <input id="password" type={visible ? 'text' : 'password'} required autoComplete="current-password"
-              value={password} onChange={e => setPassword(e.target.value)}/>
-            <button type="button" className="icon-button" aria-label={visible ? 'Hide password' : 'Show password'}
-              onClick={() => setVisible(!visible)}>{visible ? <EyeOff size={18}/> : <Eye size={18}/>}</button>
-          </div>
           {(error || initialError) && <ErrorNotice message={error || initialError}/>}
-          <button className="primary login-submit" disabled={pending || !password} aria-busy={pending}>
-            {pending ? 'Signing in…' : 'Sign in'}<ArrowRight size={17}/>
+          <button className="primary login-submit" disabled={pending} aria-busy={pending} style={{width: '100%', justifyContent: 'center', marginTop: '1rem'}}>
+            {pending ? 'Opening console…' : 'Enter ChronoGuard Console'}<ArrowRight size={17}/>
           </button>
         </form>
       </div>
