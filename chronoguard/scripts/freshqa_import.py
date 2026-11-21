@@ -1,22 +1,9 @@
 #!/usr/bin/env python3
-"""FreshQA Benchmark Slicer & Importer for ChronoGuard.
-
-Imports questions from the official FreshQA benchmark (FreshLLMs, Apache-2.0 License:
-https://github.com/freshllms/freshqa).
-
-Extracts a representative 100-item slice with fixed seed:
-- 50 fast-changing facts (versions, elections, pricing, officers, dynamic news)
-- 30 slow-changing facts (institutional data, treaties, geography, foundational releases)
-- 20 never-changing controls (scientific constants, historical foundations, mathematics)
-- Excludes false-premise questions.
-
-Sets provenance="external_benchmark" and records CSV date in label_date.
-"""
+"""Write the embedded FreshQA-derived fixture. Source row lineage has not been verified."""
 
 import csv
 import io
 import json
-import random
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -138,31 +125,8 @@ CANONICAL_FRESHQA_ITEMS = [
 
 
 def import_freshqa():
-    # Attempt download from official repo if available
-    official_url = "https://raw.githubusercontent.com/freshllms/freshqa/main/data/freshqa.csv"
-    csv_date = "2026-05-01"
-
-    print("=" * 72)
-    print("FRESHQA BENCHMARK IMPORT & SLICER")
-    print(f"Target slice: 100 items (50 fast, 30 slow, 20 control)")
-    print(f"License: Apache-2.0 (github.com/freshllms/freshqa)")
-    print("=" * 72)
-
-    try:
-        import httpx
-        print(f"Checking official repo at {official_url} ...")
-        resp = httpx.get(official_url, timeout=4)
-        if resp.status_code == 200:
-            print("Successfully fetched upstream FreshQA CSV.")
-            csv_date = resp.headers.get("last-modified", csv_date)
-        else:
-            print(f"Upstream returned HTTP {resp.status_code}; using canonical Apache-2.0 curated slice.")
-    except Exception as e:
-        print(f"Upstream fetch skipped ({e}); using canonical Apache-2.0 curated slice.")
-
-    # Fix seed for strict reproducibility
-    random.seed(42)
-
+    label_date = "2026-05-01"
+    print("Writing the embedded FreshQA-derived fixture.")
     dataset_items = []
     fast_count, slow_count, never_count = 0, 0, 0
     outdated_count, current_count = 0, 0
@@ -178,10 +142,10 @@ def import_freshqa():
             "class_key": item["class_key"],
             "fact_type": item["type"],
             "label": item["label"],
-            "label_method": "llm_match",
-            "provenance": "external_benchmark",
+            "label_method": "fixture_labels",
+            "provenance": "curated_fixture",
             "source_benchmark": "FreshQA (github.com/freshllms/freshqa)",
-            "label_date": csv_date,
+            "label_date": label_date,
         }
         dataset_items.append(formatted)
 
@@ -199,12 +163,12 @@ def import_freshqa():
 
     dataset_record = {
         "id": "freshqa-100",
-        "name": "FreshQA 100 Benchmark Slice",
+        "name": "FreshQA-derived fixture",
         "version": "1.0.0",
         "description": "Curated 100-item evaluation slice from FreshLLMs FreshQA (50 fast, 30 slow, 20 control).",
         "license": "Apache-2.0",
-        "provenance": "external_benchmark",
-        "label_date": csv_date,
+        "provenance": "curated_fixture",
+        "label_date": label_date,
         "item_count": len(dataset_items),
         "breakdown": {
             "fast_changing": fast_count,
@@ -226,8 +190,8 @@ def import_freshqa():
     print(f"  Never-changing: {never_count}")
     print(f"  Outdated:       {outdated_count}")
     print(f"  Current:        {current_count}")
-    print(f"  Provenance:     external_benchmark")
-    print(f"  Label Date:     {csv_date}")
+    print(f"  Provenance:     curated_fixture")
+    print(f"  Label Date:     {label_date}")
     print("=" * 72)
     return 0
 
