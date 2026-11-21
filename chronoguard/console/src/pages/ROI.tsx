@@ -21,9 +21,7 @@ export function RoiReport({ revision }: { revision: number }) {
   const hitRate = Number(data.hit_rate || 0);
   const staleServed = Number(data.stale_would_have_served || 0);
   const atRisk = Number(data.entries_at_risk || 0);
-  const verifCost = Number(costs.verification_cost_usd || 0);
-  const projSavings = Number(costs.projected_savings_usd || 0);
-  const netProj = Number(costs.net_projected_usd || 0);
+  const verificationCost = typeof costs.verification_cost_usd === 'number' ? `$${costs.verification_cost_usd.toFixed(4)} USD` : 'Unpriced';
 
   function exportJson() {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -50,21 +48,21 @@ export function RoiReport({ revision }: { revision: number }) {
       `|---|---|---|`,
       `| Requests Observed | ${observed} | LIVE |`,
       `| Cache Hit Rate | ${(hitRate * 100).toFixed(1)}% | LIVE |`,
-      `| Stale Answers Prevented (Shadow) | ${staleServed} | LIVE |`,
+      `| Known-stale hits in shadow mode | ${staleServed} | LIVE |`,
       `| Cache Entries at Risk | ${atRisk} | LIVE |`,
-      `| Verification Cost | $${verifCost.toFixed(4)} USD | ${costs.verification_cost_label || 'LIVE'} |`,
-      `| Projected Freshness Savings | $${projSavings.toFixed(4)} USD | ${costs.projected_savings_label || 'SIMULATED'} |`,
-      `| Net Freshness Value | $${netProj.toFixed(4)} USD | ${costs.net_projected_label || 'SIMULATED'} |`,
+      `| Verification Cost | ${verificationCost} | ${costs.verification_cost_label || 'unpriced'} |`,
+      `| Tavily Credits | ${number(costs.tavily_credits)} | recorded |`,
+      `| Verified repairs | ${number(data.repaired_hits)} | recorded |`,
+      `| Verification blocks | ${number(data.blocked_hits)} | recorded |`,
       '',
       '## Top Stale Facts Detected',
-      `| Fact Key | Cached Value | Current Value | Verdict | Entries Affected | Revision / Hits |`,
+      `| Fact Key | Cached Value | Current Value | Verdict | Entries Affected | Hits |`,
       `|---|---|---|---|---|---|`,
       ...staleFacts.map(f =>
         `| \`${f.fact_key}\` | ${f.cached_value} | ${f.current_value} | ${f.last_verdict} | ${f.entries_affected} | ${f.hits} |`
       ),
       '',
       '---',
-      '*ChronoGuard — Zero-latency active invalidation gateway for LLM caches.*',
     ].join('\n');
 
     navigator.clipboard.writeText(md).then(() => {
@@ -76,9 +74,8 @@ export function RoiReport({ revision }: { revision: number }) {
   return (
     <div className="page roi-page">
       <PageHead
-        kicker="Shadow Mode & ROI Analytics"
         title="Return on Investment"
-        description="Monitor shadow mode evaluation and measure stale answers prevented against real verification overhead."
+        description="Inspect cached answer risk, verified repairs, and recorded verification spend."
       >
         <div className="head-actions" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <WindowFilter />
@@ -92,8 +89,8 @@ export function RoiReport({ revision }: { revision: number }) {
       </PageHead>
 
       <Section
-        title="Performance & Stale Answer Impact"
-        note="Measured gateway traffic observed in shadow mode vs projected freshness savings."
+        title="Cache impact"
+        note="Known-stale shadow hits represent traffic observed while serving in shadow mode."
       >
         <Kpis
           items={[
@@ -108,7 +105,7 @@ export function RoiReport({ revision }: { revision: number }) {
               context: 'Direct & semantic hits',
             },
             {
-              label: 'Stale would have served',
+              label: 'Known-stale shadow hits',
               value: staleServed,
               context: 'Hits with outdated facts',
             },
@@ -122,36 +119,26 @@ export function RoiReport({ revision }: { revision: number }) {
       </Section>
 
       <div className="grid-2-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-        <Section title="Cost & Value Balance" note="Comparing real verification cost against avoided drift remediation.">
+        <Section title="Verification spend">
           <div className="card" style={{ padding: '1.25rem' }}>
             <table className="stats-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
               <tbody>
                 <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '0.6rem 0' }}>Verification Cost ({String(costs.verification_cost_label || 'LIVE')})</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600 }}>${verifCost.toFixed(4)} USD</td>
+                  <td style={{ padding: '0.6rem 0' }}>Verification cost</td>
+                  <td style={{ textAlign: 'right', fontWeight: 600 }}>{verificationCost}</td>
                 </tr>
                 <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '0.6rem 0' }}>Tavily Credits Used ({String(costs.verification_cost_label || 'LIVE')})</td>
+                  <td style={{ padding: '0.6rem 0' }}>Tavily credits used</td>
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>{number(costs.tavily_credits)} credits</td>
                 </tr>
-                <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '0.6rem 0' }}>Projected Drift Savings ({String(costs.projected_savings_label || 'SIMULATED')})</td>
-                  <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--color-success)' }}>
-                    +${projSavings.toFixed(4)} USD
-                  </td>
-                </tr>
-                <tr>
-                  <td style={{ padding: '0.6rem 0', fontWeight: 700 }}>Net Projected Value ({String(costs.net_projected_label || 'SIMULATED')})</td>
-                  <td style={{ textAlign: 'right', fontWeight: 700, color: netProj >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-                    ${netProj.toFixed(4)} USD
-                  </td>
-                </tr>
+                <tr><td>Verified repairs</td><td>{number(data.repaired_hits)}</td></tr>
+                <tr><td>Verification blocks</td><td>{number(data.blocked_hits)}</td></tr>
               </tbody>
             </table>
           </div>
         </Section>
 
-        <Section title="Automated Recommendation" note="Computed directly from observed numbers — no free-text claims.">
+        <Section title="Observed outcomes">
           <div className="card" style={{ padding: '1.25rem', backgroundColor: 'var(--color-surface-2)', borderLeft: '4px solid var(--color-accent)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
               <Badge value={staleServed > 0 ? 'evict_regen' : 'serve'} />
@@ -168,7 +155,7 @@ export function RoiReport({ revision }: { revision: number }) {
       >
         {staleFacts.length === 0 ? (
           <div className="empty-card" style={{ padding: '2rem', textAlign: 'center', color: 'var(--color-muted)' }}>
-            No stale facts detected in this window. All evaluated claims match ground truth.
+            No stale facts recorded in this window.
           </div>
         ) : (
           <div className="table-wrap">
