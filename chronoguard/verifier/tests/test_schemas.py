@@ -1,7 +1,17 @@
 import pytest
 from datetime import datetime, timezone
 from pydantic import ValidationError
+from app.main import PlaygroundChat
 from app.schemas.contracts import Ingest, Claim, Category, Verdict, Policy, POLICIES
+
+
+def test_playground_accepts_the_console_payload_and_requires_nonstreaming():
+    payload = {"model": "openai/gpt-4o-mini", "messages": [{"role": "user", "content": "What changed?"}],
+               "policy": "strict", "cache": True}
+    assert PlaygroundChat(**payload).stream is False
+    assert PlaygroundChat(**payload, stream=False).stream is False
+    with pytest.raises(ValidationError):
+        PlaygroundChat(**payload, stream=True)
 
 def test_ingest_valid():
     ing = Ingest(
