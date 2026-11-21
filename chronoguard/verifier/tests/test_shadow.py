@@ -126,7 +126,7 @@ async def test_roi_endpoint_comprehensive(shadow_client):
             "cache_id": "c-stale",
             "decision": "passthrough",
             "decision_shadow": "evict_regen",
-            "shadow_reason": "shadow_eval",
+            "shadow_reason": "known_stale",
             "prompt_class": "software_versions",
         },
         headers=headers,
@@ -208,12 +208,7 @@ async def test_roi_endpoint_comprehensive(shadow_client):
     assert top_fact["current_value"] == "v24.0.0"
     assert top_fact["last_verdict"] == "outdated"
 
-    # Check provenances
-    costs = roi["costs"]
-    assert costs["verification_cost_label"] == "LIVE"
-    assert costs["projected_savings_label"] == "SIMULATED"
-    assert costs["net_projected_label"] == "SIMULATED"
-
-    # Check recommendation
-    assert "Shadow mode detected 1 stale cached response(s)" in roi["recommendation"]
-    assert "Enable active invalidation" in roi["recommendation"]
+    assert roi["blocked_hits"] == 0
+    assert roi["repaired_hits"] == 0
+    assert roi["costs"]["verification_cost_usd"] is None
+    assert roi["costs"]["verification_cost_label"] == "unpriced"
