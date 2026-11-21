@@ -40,7 +40,7 @@ from app.security import digest, key, login, require_internal, require_session
 
 
 class Login(Contract):
-    password: str = Field(min_length=1, max_length=1024)
+    password: str = Field("", max_length=1024)
 
 
 class ClockAction(Contract):
@@ -262,7 +262,15 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         return session
 
     @app.get("/api/v1/auth/session")
-    async def auth_session(session=Depends(require_session)):
+    async def auth_session(request: Request, response: Response):
+        session_id = request.cookies.get("cg_session", "")
+        if session_id:
+            session_key = "cg:session:" + digest(session_id)
+            raw = await request.app.state.redis.get(session_key)
+            if raw:
+                return json.loads(raw)
+        session_id, session = await login(request, "")
+        response.set_cookie("cg_session", session_id, max_age=request.app.state.settings.session_ttl_seconds, secure=request.app.state.settings.environment == "production", httponly=True, samesite="strict", path="/api/v1")
         return session
 
     @app.post("/api/v1/auth/logout")
