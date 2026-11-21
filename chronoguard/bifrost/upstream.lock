@@ -1,0 +1,17 @@
+https://github.com/maximhq/bifrost.git
+a3cd2b5b73466ba581ea5abcba8484353e75bf57
+core
+framework
+transports
+plugins/compat
+plugins/governance
+plugins/jsonparser
+plugins/logging
+plugins/maxim
+plugins/mocker
+plugins/modelcatalogresolver
+plugins/otel
+plugins/prompts
+plugins/routing
+plugins/semanticcache
+plugins/telemetry
