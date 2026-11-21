@@ -7,7 +7,19 @@ from sqlalchemy.exc import IntegrityError
 
 from app import db
 from app.schemas.contracts import POLICIES, Ingest
-from app.security import digest
+from app.security import digest, key
+
+SAVINGS_KINDS = {"tokens_saved", "cache_saved", "saved"}
+
+
+def ledger_totals(rows):
+    saved_values = [row["usd"] for row in rows if row["kind"] in SAVINGS_KINDS]
+    spent_values = [row["usd"] for row in rows if row["kind"] not in SAVINGS_KINDS]
+    saved = sum(saved_values) if saved_values and None not in saved_values else None
+    spent = sum(spent_values) if spent_values and None not in spent_values else None
+    return {"saved_usd": saved, "spent_usd": spent,
+            "net_usd": saved - spent if saved is not None and spent is not None else None,
+            "pricing_complete": bool(rows) and None not in saved_values and None not in spent_values}
 
 
 class Repository:
@@ -112,6 +124,12 @@ class Repository:
         item = dict(row)
         if table is db.policies:
             item = {**dict(item.get("config") or {}), **{k: v for k, v in item.items() if k != "config"}}
+        if table is db.facts:
+            lam = float(item.get("lambda_hat") or 0)
+            item["interval_s"] = item.get("interval_seconds")
+            item["est_change_days"] = round(1 / (lam * 86400), 1) if lam > 0 else None
+            item["query_hits"] = item.get("query_hits") or 0
+            item["optimal_interval_s"] = item.get("optimal_interval_s") or item.get("interval_seconds")
         return item
 
     async def get(self, table, tenant, identity):
@@ -157,16 +175,45 @@ class Repository:
                     row["classes"] = sorted({claim.get("class") for claim in claims if claim.get("class")})
             if table is db.facts and rows:
                 fact_ids = [row["id"] for row in rows]
-                counts = dict((await session.execute(sa.select(db.claims.c.fact_id, sa.func.count(sa.distinct(db.claims.c.cache_id))).where(db.claims.c.tenant_id == tenant, db.claims.c.fact_id.in_(fact_ids)).group_by(db.claims.c.fact_id))).all())
+                counts = dict((await session.execute(
+                    sa.select(db.claims.c.fact_id, sa.func.count(sa.distinct(db.cache_entries.c.id)))
+                    .join(db.cache_entries, sa.and_(db.cache_entries.c.tenant_id == tenant,
+                          db.cache_entries.c.response_id == db.claims.c.response_id,
+                          db.cache_entries.c.bifrost_cache_id == db.claims.c.cache_id))
+                    .where(db.claims.c.tenant_id == tenant, db.claims.c.fact_id.in_(fact_ids)).group_by(db.claims.c.fact_id)
+                )).all())
                 for row in rows:
                     row["entries_affected"] = counts.get(row["id"], 0)
-                    row["interval_s"] = row.get("interval_seconds")
-                    lam = float(row.get("lambda_hat") or 0.0)
-                    row["lambda_hat"] = lam
-                    row["est_change_days"] = round(1.0 / (lam * 86400), 1) if lam > 0 else None
-                    row["query_hits"] = row.get("query_hits") or 0
-                    row["optimal_interval_s"] = row.get("optimal_interval_s") or row.get("interval_seconds")
         return {"items": rows[:limit], "next_cursor":str(rows[limit-1]["id"]) if len(rows)>limit else None}
+
+    def fact_entry_query(self, tenant, fact_id):
+        # The gateway cache ID can be reused after repair. Match its current response.
+        linked = sa.select(db.claims.c.id).where(
+            db.claims.c.tenant_id == tenant, db.claims.c.fact_id == fact_id,
+            db.claims.c.cache_id == db.cache_entries.c.bifrost_cache_id,
+            db.claims.c.response_id == db.cache_entries.c.response_id,
+        ).exists()
+        return sa.select(db.cache_entries).where(db.cache_entries.c.tenant_id == tenant, linked)
+
+    async def fact_detail(self, tenant, identity):
+        fact = await self.get(db.facts, tenant, identity)
+        if fact is None:
+            return None
+        async with self.database.sessions() as session:
+            entries = (await session.execute(self.fact_entry_query(tenant, identity).with_only_columns(
+                db.cache_entries.c.id, db.cache_entries.c.status, db.cache_entries.c.best_before,
+            ).order_by(db.cache_entries.c.created_at.desc()).limit(100))).mappings().all()
+            history = (await session.execute(sa.select(db.verifications).where(
+                db.verifications.c.tenant_id == tenant, db.verifications.c.fact_id == identity,
+            ).order_by(db.verifications.c.created_at.desc(), db.verifications.c.id.desc()).limit(50))).mappings().all()
+            evidence = (await session.execute(sa.select(db.evidence).join(
+                db.verifications, db.verifications.c.id == db.evidence.c.verification_id,
+            ).where(db.evidence.c.tenant_id == tenant, db.verifications.c.tenant_id == tenant,
+                    db.verifications.c.fact_id == identity)
+                .order_by(db.evidence.c.retrieved_at.desc(), db.evidence.c.authority_tier, db.evidence.c.id)
+                .limit(100))).mappings().all()
+        return {**fact, "entries": [dict(row) for row in entries], "history": [dict(row) for row in history],
+                "evidence": [dict(row) for row in evidence]}
 
     async def cache_entry(self, tenant, identity):
         """Entry detail with the records an operator needs to explain it."""
@@ -254,7 +301,6 @@ class Repository:
     async def costs(self, tenant, hours=24, redis=None, settings=None):
         start = datetime.now(UTC) - timedelta(hours=hours)
         one_hour_ago = datetime.now(UTC) - timedelta(hours=1)
-        checks_last_hour = 0
         async with self.database.sessions() as session:
             rows = (await session.execute(sa.select(db.cost_ledger).where(db.cost_ledger.c.tenant_id == tenant, db.cost_ledger.c.created_at >= start))).mappings().all()
             facts = (await session.execute(
@@ -263,17 +309,19 @@ class Repository:
                 .where(db.facts.c.tenant_id == tenant, db.verifications.c.created_at >= start)
                 .group_by(db.facts.c.fact_key).order_by(sa.desc(sa.func.sum(db.verifications.c.tavily_credits))).limit(10)
             )).mappings().all()
-            checks_last_hour = (await session.execute(
-                sa.select(sa.func.count(db.verifications.c.id)).where(db.verifications.c.tenant_id == tenant, db.verifications.c.created_at >= one_hour_ago)
+            credits_last_hour = (await session.execute(
+                sa.select(sa.func.sum(db.cost_ledger.c.units)).where(
+                    db.cost_ledger.c.tenant_id == tenant, db.cost_ledger.c.kind == "tavily_credits",
+                    db.cost_ledger.c.created_at >= one_hour_ago,
+                )
             )).scalar() or 0
 
         scheduler_mode = getattr(settings, "scheduler_mode", "standard") if settings else "standard"
         budget_target = getattr(settings, "scheduler_budget_checks_per_hour", 100) if settings else 100
         scheduler_metrics = {
             "mode": scheduler_mode,
-            "budget_checks_per_hour": budget_target,
-            "actual_checks_last_hour": checks_last_hour,
-            "budget_utilization_pct": round((checks_last_hour / max(budget_target, 1)) * 100, 1),
+            "planning_credits_per_hour": budget_target if scheduler_mode == "optimal" else None,
+            "recorded_search_credits_last_hour": credits_last_hour,
         }
 
         delta_metrics = {
@@ -283,12 +331,12 @@ class Repository:
             "checks_changed": 0,
             "checks_fallback": 0,
             "credits_saved": 0.0,
-            "tokens_saved": 0,
+            "judge_tokens": 0,
             "hit_rate_pct": 0.0,
         }
         if redis is not None:
             try:
-                raw_delta = await redis.hgetall(f"cg:{tenant}:delta:metrics")
+                raw_delta = await redis.hgetall(key(tenant, "delta", "metrics"))
                 if raw_delta:
                     total = int(raw_delta.get("total_checks") or raw_delta.get(b"total_checks") or 0)
                     c304 = int(raw_delta.get("checks_304") or raw_delta.get(b"checks_304") or 0)
@@ -304,24 +352,18 @@ class Repository:
                         "checks_changed": cchanged,
                         "checks_fallback": cfallback,
                         "credits_saved": csaved,
-                        "tokens_saved": tsaved,
+                        "judge_tokens": tsaved,
                         "hit_rate_pct": round(((c304 + chash) / total * 100), 1) if total > 0 else 0.0,
                     }
             except Exception:
                 pass
 
-        saved_kinds = {"tokens_saved", "cache_saved", "saved"}
         by_kind: dict[str, dict] = {}
         by_class: dict[str, dict] = {}
         by_day: dict[str, dict] = {}
-        saved = spent = 0.0
-        saved_priced = spent_priced = True
-        priced_rows = 0
         for row in rows:
             kind = row["kind"]
             usd = row["usd"]
-            if usd is not None:
-                priced_rows += 1
             amount = float(usd or 0.0)
             bucket = by_kind.setdefault(kind, {"units": 0.0, "usd": 0.0, "priced": True})
             bucket["units"] += float(row["units"] or 0.0)
@@ -330,12 +372,6 @@ class Repository:
                 bucket["usd"] = None
             elif bucket["usd"] is not None:
                 bucket["usd"] += amount
-            if kind in saved_kinds:
-                saved += amount
-                saved_priced = saved_priced and usd is not None
-            else:
-                spent += amount
-                spent_priced = spent_priced and usd is not None
             if row["class_key"]:
                 klass = by_class.setdefault(row["class_key"], {"units": 0.0, "usd": 0.0, "priced": True})
                 klass["units"] += float(row["units"] or 0.0)
@@ -348,23 +384,15 @@ class Repository:
             daily = by_day.setdefault(day, {"day": day, "saved_usd": 0.0, "spent_usd": 0.0, "priced": True})
             if usd is None:
                 daily["priced"] = False
-            elif kind in saved_kinds:
+            elif kind in SAVINGS_KINDS:
                 daily["saved_usd"] += amount
             else:
                 daily["spent_usd"] += amount
 
-        # A sum that silently treats unknown prices as zero would be a fabricated
-        # saving; leave it null and say why instead.
-        savings_complete = saved_priced and any(row["kind"] in saved_kinds for row in rows)
-        spend_complete = spent_priced and any(row["kind"] not in saved_kinds for row in rows)
-        net = (saved - spent) if savings_complete and spend_complete else None
         return {
             "window_hours": hours,
-            "saved_usd": saved if savings_complete else None,
-            "spent_usd": spent if spend_complete else None,
-            "net_usd": net,
+            **ledger_totals(rows),
             "reconciliation_delta_usd": None,
-            "pricing_complete": priced_rows == len(rows) and bool(rows),
             "by_kind": {name: value for name, value in by_kind.items()},
             "by_class": by_class,
             "by_day": [by_day[day] for day in sorted(by_day)],
