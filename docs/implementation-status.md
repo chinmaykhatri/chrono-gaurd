@@ -1,5 +1,7 @@
 # Implementation status
 
+This is a historical work-in-progress snapshot. See the [application README](../chronoguard/README.md) and [release replay](../chronoguard/docs/demo-script.md) for the active setup and verification paths.
+
 This file records implementation and observed validation separately. Specifications are not evidence that a feature works.
 
 ## Work roles and execution loop
