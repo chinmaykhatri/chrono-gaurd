@@ -9,6 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
 
 from app import db
+from app.clients import DependencyUnavailable
 from app.config import Settings
 from app.main import create_app
 from app.schemas.contracts import Category, Claim, Evidence, Verdict
@@ -194,6 +195,33 @@ async def test_exhausted_budget_never_becomes_fresh(app):
     assert result["status"] == "unverifiable"
     assert result["freshness"] is None
     assert result["reason"] == "budget_exhausted"
+
+
+@pytest.mark.asyncio
+async def test_model_budget_blocks_paid_work_before_extraction(app):
+    models = FakeModels([], Verdict(verdict="unverifiable"))
+    tavily = FakeTavily([])
+    app.state.settings.llm_tokens_per_hour = 1000
+    app.state.verifier.models = models
+    app.state.verifier.tavily = tavily
+
+    response = await call(app, "/internal/v1/verify-inline", body("model-budget", "entry-budget", "Go 1.24"))
+    assert response.status_code == 200
+    assert response.json()["annotation"]["reason"] == "model_budget_exhausted"
+    assert models.extracted == tavily.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_concurrent_manifest_update_cannot_overwrite_newer_stale_revision(app):
+    cache_id = "entry-cas"
+    identity = key("default", "manifest", cache_id)
+    before = json.dumps({"rev": 1, "status": "fresh"})
+    stale = json.dumps({"rev": 2, "status": "stale"})
+    await app.state.redis.set(identity, stale)
+
+    with pytest.raises(DependencyUnavailable, match="manifest_changed"):
+        await app.state.verifier._publish_manifest("default", cache_id, before, {"rev": 2, "status": "fresh"})
+    assert await app.state.redis.get(identity) == stale
 
 
 @pytest.mark.asyncio
