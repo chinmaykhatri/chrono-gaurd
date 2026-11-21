@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     judge_model: str = ""
     judge_escalation_model: str = ""
     tavily_api_key: SecretStr = Field(default=SecretStr(""), validation_alias=AliasChoices("CG_TAVILY_API_KEY", "TAVILY_API_KEY"))
+    tavily_base_url: str = "https://api.tavily.com"
     store_content: bool = False
     retention_days: int = Field(7, ge=1, le=365)
     allow_simulated_clock: bool = False
@@ -35,8 +36,9 @@ class Settings(BaseSettings):
     shadow_enabled: bool = Field(False)
     guard_enabled: bool = Field(False)
     delta_enabled: bool = Field(False)
-    scheduler_mode: str = Field("standard")
-    scheduler_budget_checks_per_hour: int = Field(100)
+    delta_source_urls: list[str] = Field(default_factory=list)
+    scheduler_mode: Literal["standard", "optimal"] = "standard"
+    scheduler_budget_checks_per_hour: int = Field(100, ge=1)
     # Model knowledge cutoffs, ISO dates keyed by the model id used through
     # Bifrost. An unknown model is treated as 18 months old, never as current.
     model_cutoffs: dict[str, str] = Field(default_factory=dict)
@@ -53,6 +55,8 @@ class Settings(BaseSettings):
             raise ValueError("Console origin must be an HTTP(S) origin")
         if self.environment == "production" and origin.scheme != "https":
             raise ValueError("Production requires an HTTPS console origin")
+        if self.environment == "production" and self.tavily_base_url != "https://api.tavily.com":
+            raise ValueError("Production uses the live Tavily endpoint")
         if any(tier not in (1, 2, 3, 4) for tier in self.source_authorities.values()):
             raise ValueError("Authority tiers must be 1 through 4")
         return self
