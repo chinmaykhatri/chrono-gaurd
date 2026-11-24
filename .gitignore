@@ -46,3 +46,5 @@ chronoguard/eval/reports/local/
 graphify-out/cache/
 .hallmark/
 .freebuff/
+
+/scratch/bifrost-runtime/config.json

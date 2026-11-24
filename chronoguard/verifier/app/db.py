@@ -106,18 +106,17 @@ jobs = sa.Table("verification_jobs", metadata, *base_columns(),
     sa.UniqueConstraint("tenant_id", "response_id"))
 
 
+def async_database_url(url: str) -> str:
+    for scheme in ("postgres://", "postgresql://"):
+        if url.startswith(scheme):
+            return "postgresql+asyncpg://" + url[len(scheme):]
+    return url
+
+
 class Database:
     def __init__(self, url: str):
-        if url.startswith("postgres://"):
-            url = url.replace("postgres://", "postgresql+asyncpg://", 1)
-        elif url.startswith("postgresql://") and not url.startswith("postgresql+"):
-            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
-        self.engine = create_async_engine(url, pool_pre_ping=True, echo=False)
+        self.engine = create_async_engine(async_database_url(url), pool_pre_ping=True, echo=False)
         self.sessions = async_sessionmaker(self.engine, expire_on_commit=False)
-
-    async def init_tables(self):
-        async with self.engine.begin() as connection:
-            await connection.run_sync(metadata.create_all)
 
     async def healthy(self):
         async with self.engine.connect() as connection:

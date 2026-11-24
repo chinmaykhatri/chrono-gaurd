@@ -123,7 +123,7 @@ def run(origin, password, images=None):
         expect(page.get_by_text("Claim manifest", exact=True)).to_be_visible()
         passed("Open a persisted cache manifest")
         visit("Fact ledger")
-        page.locator('main a[href^="/facts/"]').filter(has_text="interactive-replay").first.click()
+        page.locator('main a[href^="/facts/"]').filter(has_text="software_versions").first.click()
         expect(page.locator('main a[href^="https://go.dev/"]').first).to_be_visible()
         with page.expect_response(lambda r: "/reverify" in r.url and r.request.method == "POST") as recheck:
             page.get_by_role("button", name="Re-verify fact").click()

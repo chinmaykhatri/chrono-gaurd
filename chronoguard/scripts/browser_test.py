@@ -1,3 +1,4 @@
+from pathlib import Path
 import os
 import sys
 import time
@@ -6,7 +7,7 @@ from playwright.sync_api import sync_playwright
 SCREENSHOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "screenshots"))
 os.makedirs(SCREENSHOT_DIR, exist_ok=True)
 
-PASSWORD = "i9aXw7wmQBVZTjNBEwSrALYQ-UOUF4bG"
+PASSWORD = (Path(__file__).resolve().parents[1] / ".admin-password").read_text(encoding="utf-8").strip()
 BASE_URL = "http://127.0.0.1:5175"
 
 def run_browser_checks():

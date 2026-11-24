@@ -1,0 +1,92 @@
+{
+  "model": "qwen2.5:1.5b",
+  "model_digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+  "source_snapshot_sha256": "220c12428c9a524e6e6eddb8e552f2631cd03becd4c5d259123852d50e760bf1",
+  "method": "Actual regeneration with the recorded publisher update supplied. Version-only scoring excludes URLs. Other factual errors and live search are outside this measure.",
+  "correct": {
+    "numerator": 6,
+    "denominator": 6,
+    "rate": 1.0
+  },
+  "unexpected_version": {
+    "numerator": 0,
+    "denominator": 6,
+    "rate": 0.0
+  },
+  "rows": [
+    {
+      "package": "certifi",
+      "superseded": "2025.10.5",
+      "expected": "2025.11.12",
+      "source": "https://pypi.org/project/certifi/2025.11.12/",
+      "returned": "According to the provided JSON data, the most recent stable version of certifi published on PyPI as of the end of 2025 was 2025.11.12. This information can be verified from the source provided: \"https://pypi.org/project/certifi/2025.11.12/\".",
+      "version_mentions": [
+        "2025.11.12"
+      ],
+      "correct": true,
+      "extra_version_claims": []
+    },
+    {
+      "package": "click",
+      "superseded": "8.3.0",
+      "expected": "8.3.1",
+      "source": "https://pypi.org/project/click/8.3.1/",
+      "returned": "According to the claim update provided, the most recently published stable version of click on PyPI as of the end of 2025 was 8.3.1. This information can be found on the PyPI project page for click, which states: \"The latest stable version of click is 8.3.1.\" This version was published on 2025-08-14.",
+      "version_mentions": [
+        "8.3.1",
+        "8.3.1"
+      ],
+      "correct": true,
+      "extra_version_claims": []
+    },
+    {
+      "package": "packaging",
+      "superseded": "24.2",
+      "expected": "25.0",
+      "source": "https://pypi.org/project/packaging/25.0/",
+      "returned": "According to the claim update provided, the most recently published stable version of the packaging library on PyPI as of the end of 2025 was version 25.0. This information can be found on the packaging project's PyPI page, which states: \"The latest stable version of packaging is 25.0.\" (https://pypi.org/project/packaging/25.0/)",
+      "version_mentions": [
+        "25.0",
+        "25.0"
+      ],
+      "correct": true,
+      "extra_version_claims": []
+    },
+    {
+      "package": "requests",
+      "superseded": "2.32.4",
+      "expected": "2.32.5",
+      "source": "https://pypi.org/project/requests/2.32.5/",
+      "returned": "According to the claim update provided, the most recently published stable version of the requests library on PyPI as of the end of 2025 was 2.32.5. This information can be verified from the source provided: \"https://pypi.org/project/requests/2.32.5/\".",
+      "version_mentions": [
+        "2.32.5"
+      ],
+      "correct": true,
+      "extra_version_claims": []
+    },
+    {
+      "package": "sqlalchemy",
+      "superseded": "2.0.44",
+      "expected": "2.0.45",
+      "source": "https://pypi.org/project/sqlalchemy/2.0.45/",
+      "returned": "According to the claim update provided, the most recently published stable version of SQLAlchemy on PyPI as of the end of 2025 was 2.0.45. This information is sourced from the PyPI project page for SQLAlchemy, which can be found at the following link: https://pypi.org/project/sqlalchemy/2.0.45/.",
+      "version_mentions": [
+        "2.0.45"
+      ],
+      "correct": true,
+      "extra_version_claims": []
+    },
+    {
+      "package": "urllib3",
+      "superseded": "2.6.1",
+      "expected": "2.6.2",
+      "source": "https://pypi.org/project/urllib3/2.6.2/",
+      "returned": "According to the claim update provided, the most recent stable version of urllib3 on PyPI as of the end of 2025 was 2.6.2. This information is sourced from the PyPI project page for urllib3, which can be found at the following link: https://pypi.org/project/urllib3/2.6.2/.",
+      "version_mentions": [
+        "2.6.2"
+      ],
+      "correct": true,
+      "extra_version_claims": []
+    }
+  ]
+}

@@ -12,7 +12,7 @@ from app import db
 from app.config import Settings
 from app.main import create_app
 from app.schemas.contracts import Category, Claim, Evidence, Verdict
-from app.security import digest, key
+from app.security import digest, key, session_key
 
 
 def make_claim(text, claim_text, entity, attribute, stated, klass=Category.SOFTWARE):
@@ -187,7 +187,7 @@ async def test_fact_deduplication_zero_tavily(app):
     assert await app.state.repo.fact_detail("other-tenant", fact_id) is None
     claim_id = detail["history"][0]["claim_id"]
     session_id = "fact-operator"
-    await app.state.redis.set("cg:session:" + digest(session_id),
+    await app.state.redis.set(session_key(app.state.settings, session_id),
                               json.dumps({"tenant_id": "default", "authenticated": True, "csrf_token": "csrf"}))
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test",
                            cookies={"cg_session": session_id}, headers={"Origin": "http://localhost:3000", "X-CSRF-Token": "csrf"}) as client:

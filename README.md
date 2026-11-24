@@ -1,157 +1,38 @@
 # ChronoGuard
 
-> **Active Semantic Cache Invalidation Gateway for Large Language Models**  
-> *Eliminating stale hallucinations in cached LLM responses without sacrificing speed or budget.*
+A release changes overnight. Two cached answers still recommend the old version. ChronoGuard checks their shared fact once, marks the affected entries stale and verifies the replacement before the gateway returns it.
 
-[![Gate G1 Verification](https://img.shields.io/badge/Gate%20G1-100%25%20PASS-2eb85c)](docs/audit.md)
-[![Python Tests](https://img.shields.io/badge/Python%20Tests-54%2F54%20PASS-blue)](chronoguard/verifier/tests)
-[![Go Tests](https://img.shields.io/badge/Go%20Plugins-21%2F21%20PASS-00add8)](chronoguard/bifrost/plugins/chronoguard)
-[![Console](https://img.shields.io/badge/React%2018%20Console-10%20Pages%20Ready-61dafb)](chronoguard/console)
-[![License](https://img.shields.io/badge/License-Apache%202.0-orange)](LICENSE)
+[Watch the 24-second operator demo](chronoguard/docs/release-demo.webm) · [Inspect the gateway trace](chronoguard/eval/reports/gateway-lifecycle.json) · [View CI runs](https://github.com/chinmaykhatri/chrono-gaurd/actions/workflows/chronoguard-replay.yml)
 
----
+## Run the demo
 
-## 📌 Executive Summary
+From `chronoguard/`, run the following with Docker, Git and uv installed.
 
-Traditional LLM semantic caches suffer from **time blindness**: when an external fact changes (such as a new software version, a policy update, or a stock price change), the cache continues to confidently serve outdated answers.
-
-**ChronoGuard** transforms passive caching into an active truth-maintenance memory layer:
-1. **Deconstructs LLM responses** into atomic factual claims `[Entity, Attribute, Stated Value]`.
-2. **Maintains a shared Fact Ledger** across all semantic cache entries.
-3. **Monitors live web evidence via Tavily** with domain authority weighting.
-4. **Cascades invalidation instantly** across the Redis reverse index when a fact changes.
-5. **Grounded re-generation** repairs stale answers on the fly before users receive them.
-
----
-
-## 📊 Market Comparison & Empirical Benchmark
-
-In our controlled 1,000-request release timeline replay comparing passive caches, static TTLs, and ChronoGuard:
-
-| Cache Strategy | Stale Hits / 1,000 Req | Evidence Credits / 1,000 Req | Grounded Repairs |
-|:---|:---:|:---:|:---:|
-| **Passive Cache-Only** | 681.03 | 0.00 | 0 |
-| **Fixed TTL (1 Hour)** | 10.27 | 1000.00 | 144 |
-| **Fixed TTL (12 Hours)** | 5.40 | 95.89 | 12 |
-| **Fixed TTL (48 Hours)** | 338.54 | 27.40 | 4 |
-| **Always Verify (No Cache)** | 0.00 | 2000.00 | 4 |
-| **ChronoGuard Claim Ledger** | **5.17** | **68.49** | **4** |
-
-- **99.2% Staleness Reduction:** Slashes stale answers from 681 down to 5.17 per 1,000 hits.
-- **93.1% Cost Savings:** Uses 93% fewer evidence credits than 1-hour TTLs while achieving superior freshness.
-
----
-
-## 🏗️ Architecture
-
-```mermaid
-flowchart TD
-    Client["Client / Application"] -->|HTTP /v1/chat/completions| Proxy["NGINX Reverse Proxy :18080"]
-    Proxy -->|API Routing| Gateway["Bifrost Gateway (Go)"]
-    Proxy -->|UI Routing| Console["React 18 Console"]
-    Proxy -->|REST API /api/v1/*| Verifier["FastAPI Verifier Service"]
-
-    subgraph "Bifrost Gateway Hook Pipeline"
-        H7["Hook 7: cg-front<br/>(Prompt classify, Guard check, Manifest check)"]
-        H8["Hook 8: semantic_cache<br/>(Weaviate vector search)"]
-        H9["Hook 9: cg-back<br/>(Post-LLM ingest, async verification trigger)"]
-        H7 --> H8 --> H9
-    end
-    Gateway --> H7
-
-    subgraph "State & Coordination Layer"
-        Redis["Redis 7<br/>(Manifests, Reverse Index, Rate Limiters)"]
-        Postgres["PostgreSQL 16<br/>(Audit Ledger, Cost Tracking, Verified Claims)"]
-        Weaviate["Weaviate 1.32<br/>(Semantic Vector Embeddings)"]
-    end
-
-    H7 <--> Redis
-    H8 <--> Weaviate
-    H9 --> Verifier
-    Verifier <--> Postgres
-    Verifier <--> Redis
-
-    subgraph "External Providers"
-        Tavily["Tavily Live Search API"]
-        LLM["LLM Provider (OpenAI / Anthropic / Local Replay)"]
-    end
-
-    Verifier --> Tavily
-    Gateway --> LLM
-```
-
----
-
-## ⚡ Key Innovations
-
-### 1. Semantic-Hit Guard (Go Hook)
-Vector caches often mistakenly match queries with distinct temporal anchors (e.g., *"Apple CEO in 2010"* vs. *"Apple CEO in 2024"*). ChronoGuard's in-gateway Go guard detects entity, number, and polarity inversions in microseconds, automatically bypassing the cache to prevent false matches.
-
-### 2. Budget-Optimal Poisson Scheduler
-Implements Cho & Garcia-Molina's Poisson change-rate estimator paired with a constrained Lagrangian solver to allocate revalidation checks to high-traffic, fast-drifting facts within strict API credit budgets.
-
-### 3. Delta Revalidation (HTTP 304 Fast Path)
-Conditional HTTP GET/HEAD probes verify whether authoritative documentation has changed without burning search credits or LLM tokens, achieving sub-15ms re-certification.
-
----
-
-## 🚀 Quickstart: Run the Self-Contained Replay
-
-The replay environment runs with zero external API dependencies using a mock LLM and Tavily fixture provider:
-
-```bash
-cd chronoguard
-
-# 1. Bootstrap secrets and environment configuration
+```sh
 uv run --project verifier python scripts/bootstrap.py
-
-# 2. Start the Docker replay stack
 docker compose -f docker-compose.yml -f deploy/compose.replay.yml -p chronoguard-replay up --build -d --wait
-
-# 3. Run the automated release proof scenario
 uv run --project verifier python scripts/release_demo.py --output release-proof.json
 ```
 
-Open the console at **`http://localhost:18080`** (or `http://localhost:8080` if standard port) and sign in using the password in `chronoguard/.admin-password`.
+Open the console at `http://localhost:8080` and sign in with the generated local `.admin-password`. The run exercises Bifrost, the verifier, the vector cache, PostgreSQL and Redis. The provider, search results and clock are controlled so a judge can repeat the same release change without credentials. The second identical request after eviction verifies that the gateway actually cleared the old cache entry. [Setup and alternate ports](chronoguard/README.md) · [Demonstration steps](chronoguard/docs/demo-script.md)
 
----
+## What the measurements say
 
-## 🖥️ Console Pages Overview
+| Question | Observed result | Evidence |
+| --- | --- | --- |
+| Does repair cross the gateway boundary? | The HTTP client received Go 1.25 after one due search. A related entry became stale. A simulated provider outage returned 503 with no answer text. | [11 gateway cases](chronoguard/eval/reports/gateway-lifecycle.json) |
+| What does serving a warm answer cost locally? | Across five alternating trials, 100 direct hits generated zero new answers. Cache-disabled requests generated 100. Client p50/p95/p99 were 4.53/6.28/6.97 ms for hits and 40.83/52.52/77.99 ms with caching disabled. The provider runs locally. | [200 timed requests](chronoguard/eval/reports/gateway-latency.json) |
+| Does adaptive scheduling beat TTLs on other releases? | On 8,760 simulated requests with 2025 PyPI upload dates as ground truth, the scheduler matched a 48-hour TTL at 97 stale answers and 1,098 checks. Under the tighter weekly budget it served 507 stale answers for 309 checks. A seven-day TTL served 397 for 318 checks. | [Held-out timeline](chronoguard/eval/reports/publisher-timeline.json) · [Request-level CSV](chronoguard/eval/reports/publisher-timeline.csv.gz) |
+| Can the heuristic distinguish paraphrases reliably? | The Go guard classified 60/100 external PAWS-Wiki pairs correctly. It let 17 differing pairs through and rejected 23 valid paraphrases. | [Independent guard results](chronoguard/eval/reports/paws-held-out.json) |
+| How well does a real local model verify claims? | On a 24-item WiCE sample, Qwen2.5 1.5B confirmed 3/16 statements with incomplete support. The invalidation rule evicted 0/8 fully supported statements. Exact-span extraction recovered 10/24 reference spans with 10 predictions. Two judge outputs failed validation. | [Per-item model results](chronoguard/eval/reports/wice-local.json) |
+| Can a model incorporate a known correction? | Given six archival PyPI updates, local generation returned the expected version in 6/6 answers with zero extra version strings. This measures version accuracy with evidence supplied. | [Generated answers and sources](chronoguard/eval/reports/grounded-repairs.json) |
 
-The React 18 console includes 10 dedicated management and observability views:
-- **Freshness Overview (`/`):** Real-time freshness metrics, decision breakdown, and interactive Redis probe widget.
-- **Playground (`/playground`):** Live chat through Bifrost with color-coded factual claim highlighting.
-- **Live Feed (`/feed`):** Real-time Server-Sent Events (SSE) tracing request lifecycles.
-- **Cache Explorer (`/cache`):** Inspect cached answers, manifests, and trigger manual revalidation/eviction.
-- **Fact Ledger (`/facts`):** Reverse-index inspector showing all cache entries affected by drifting facts.
-- **Costs & Latency (`/costs`):** Measured spend, token savings, and delta revalidation efficiencies.
-- **ROI Analytics (`/roi`):** Quantified stale hits prevented and projected cost savings.
-- **Evaluation Lab (`/eval`):** Benchmark replay suite supporting FreshQA and StaleBench datasets.
-- **Policies (`/policies`):** Configurable strictness, fail-closed boundaries, and volatility classes.
-- **Settings (`/settings`):** Health monitoring across all 6 underlying services and evaluation clock control.
+The 4,672-row Go/Node policy replay uses scripted traffic and a delayed provider. Accuracy on production traffic, throughput under concurrency and billed provider costs still need live trials. [Methods and reproduction](chronoguard/docs/benchmark.md)
 
----
+The optional FreeModel profile has live Bifrost chat, claim extraction and evidence judging with `claude-opus-5`. It uses 384-dimensional MiniLM embeddings from local Ollama and needs a separate Tavily key for live search. [Provider setup](chronoguard/README.md#use-the-freemodel-provider) · [Observed provider results](chronoguard/eval/reports/freemodel-live.json)
 
-## 📁 Repository Structure
+## Operate and review
 
-```
-├── .agents/                    # Agentic workflows and graphify rules
-├── .github/workflows/          # CI/CD verification pipelines
-├── chronoguard/                # Core ChronoGuard implementation
-│   ├── bifrost/plugins/        # Go plugins (cg-front, cg-back, guard, classify)
-│   ├── console/                # React 18 + Vite + TypeScript dashboard
-│   ├── verifier/               # FastAPI claim extraction, judge, and scheduler
-│   ├── deploy/                 # Docker Compose and NGINX configurations
-│   ├── eval/                   # Benchmark datasets (FreshQA-100, StaleBench)
-│   ├── scripts/                # Bootstrap, demo replay, and verification scripts
-│   └── docker-compose.yml      # Base multi-service orchestration
-├── docs/                       # Technical specifications, PRDs, and audit reports
-├── screenshots/                # Verified desktop and mobile console captures
-└── scripts/                    # Shell and PowerShell runner wrappers
-```
+The Go gateway decides whether to serve, recheck or replace each cached answer. The Python verifier stores claim evidence and coordinates updates across entries. The operator console traces those decisions back to the evidence. [Current architecture](chronoguard/docs/architecture.md) · [Review findings and remaining work](chronoguard/docs/review-findings.md)
 
----
-
-## 🛡️ License
-
-This project is licensed under the Apache 2.0 License.
+The local Compose setup runs the full stack with either OpenAI or FreeModel. Both live profiles use Tavily for evidence retrieval. The hosted console/verifier blueprint needs a separately reachable Bifrost gateway and Redis, a password hash and an exact HTTPS console origin. The `docs/` directory at repository root contains design specifications and historical implementation notes.

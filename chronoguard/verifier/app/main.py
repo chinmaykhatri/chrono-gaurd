@@ -22,7 +22,7 @@ from app import db
 from app.clients import DependencyUnavailable, ModelClient, TavilyClient
 from app.clock.service import Clock
 from app.config import Settings
-from app.eval_runner import eval_service
+from app.eval_runner import EvalService
 from app.pipeline.budget import Buckets
 from app.pipeline.triage import prompt_class
 from app.pipeline.verify import Verifier
@@ -37,11 +37,11 @@ from app.schemas.contracts import (
     Revalidate,
 )
 from app.scoring.freshness import CLASSES
-from app.security import digest, key, login, require_internal, require_session
+from app.security import digest, key, login, require_internal, require_session, session_key
 
 
 class Login(Contract):
-    password: str = Field("", max_length=1024)
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class ClockAction(Contract):
@@ -175,11 +175,28 @@ async def prune_content(app):
         await asyncio.sleep(3600)
 
 
+class ConsoleOriginCORS:
+    def __init__(self, app):
+        self.app = app
+        self.cors = None
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        if self.cors is None:
+            origin = scope["app"].state.settings.console_origin.rstrip("/")
+            self.cors = CORSMiddleware(self.app, allow_origins=[origin], allow_credentials=True,
+                                       allow_methods=["GET", "POST", "PUT", "DELETE"],
+                                       allow_headers=["Content-Type", "X-CSRF-Token"])
+        await self.cors(scope, receive, send)
+
+
 def create_app(settings: Settings | None = None, database=None, redis_client=None):
     @asynccontextmanager
     async def lifespan(app):
         cfg = settings or Settings()
         app.state.settings = cfg
+        app.state.eval_service = EvalService()
         app.state.database = database or db.Database(cfg.database_url.get_secret_value())
         app.state.redis = redis_client or redis.from_url(cfg.redis_url.get_secret_value(), decode_responses=True, socket_timeout=2, socket_connect_timeout=2)
         app.state.repo = Repository(app.state.database)
@@ -217,13 +234,7 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
                 await app.state.database.close()
 
     app = FastAPI(title="ChronoGuard Verifier", version="0.1.0", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origin_regex=r"^https?://.*$",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    app.add_middleware(ConsoleOriginCORS)
     app.add_middleware(SecurityHeaders)
 
     @app.exception_handler(HTTPException)
@@ -270,20 +281,12 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         return session
 
     @app.get("/api/v1/auth/session")
-    async def auth_session(request: Request, response: Response):
-        session_id = request.cookies.get("cg_session", "")
-        if session_id:
-            session_key = "cg:session:" + digest(session_id)
-            raw = await request.app.state.redis.get(session_key)
-            if raw:
-                return json.loads(raw)
-        session_id, session = await login(request, "")
-        response.set_cookie("cg_session", session_id, max_age=request.app.state.settings.session_ttl_seconds, secure=request.app.state.settings.environment == "production", httponly=True, samesite="strict", path="/api/v1")
+    async def auth_session(session=Depends(require_session)):
         return session
 
     @app.post("/api/v1/auth/logout")
     async def auth_logout(request: Request, response: Response, session=Depends(require_session)):
-        await request.app.state.redis.delete("cg:session:"+digest(request.cookies["cg_session"]))
+        await request.app.state.redis.delete(session_key(request.app.state.settings, request.cookies["cg_session"]))
         response.delete_cookie("cg_session", path="/api/v1")
         return {"ok":True}
 
@@ -582,7 +585,8 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
     @app.get("/api/v1/models")
     async def models(request: Request, session=Depends(require_session)):
         cfg = request.app.state.settings
-        configured = sorted({cfg.extractor_model, cfg.judge_model, cfg.judge_escalation_model} - {None, ""})
+        configured = ([cfg.chat_model] if cfg.chat_model else
+                      sorted({cfg.extractor_model, cfg.judge_model, cfg.judge_escalation_model} - {None, ""}))
         if configured:
             return {"items": [{"id": model} for model in configured], "source": "configured"}
         # The Playground asks the gateway which models are actually routable.
@@ -611,7 +615,7 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
     for path, table in (("requests",db.requests),("cache-entries",db.cache_entries),("facts",db.facts),("policies",db.policies)):
         def list_endpoint(table):
             async def endpoint(request: Request, limit: int=Query(50,ge=1,le=200), cursor: str|None=None, session=Depends(require_session)):
-                filters = {k:v for k,v in request.query_params.items() if k in ("decision","status","policy","cache_status","class_key","model_id")}
+                filters = {k:v for k,v in request.query_params.items() if k in ("decision","status","policy","cache_status","class_key","model_id","bifrost_cache_id","qualifier")}
                 return await request.app.state.repo.list(table,session["tenant_id"],limit,cursor,filters)
             return endpoint
         def detail_endpoint(table):
@@ -673,46 +677,49 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
         return await request.app.state.repo.costs(session["tenant_id"], hours, redis=request.app.state.redis, settings=request.app.state.settings)
 
     @app.get("/api/v1/eval/datasets")
-    async def eval_datasets(session=Depends(require_session)):
-        items = eval_service.list_datasets()
+    async def eval_datasets(request: Request, session=Depends(require_session)):
+        items = request.app.state.eval_service.list_datasets()
         return {"items": items, "next_cursor": None, "available": True}
 
     @app.post("/api/v1/eval/datasets")
     async def import_eval_dataset(request: Request, session=Depends(require_session)):
         body = await request.json()
-        imported = eval_service.import_dataset(body)
+        try:
+            imported = request.app.state.eval_service.import_dataset(body)
+        except (ValueError, TypeError):
+            raise HTTPException(422, "invalid_dataset") from None
         return imported
 
     @app.get("/api/v1/eval/datasets/{identity}/items")
-    async def eval_dataset_items(identity: str, session=Depends(require_session)):
-        ds = eval_service.get_dataset(identity)
+    async def eval_dataset_items(identity: str, request: Request, session=Depends(require_session)):
+        ds = request.app.state.eval_service.get_dataset(identity)
         if not ds:
             raise HTTPException(404, "dataset_not_found")
         return {"items": ds.get("items", []), "total": len(ds.get("items", []))}
 
     @app.get("/api/v1/eval/runs")
-    async def eval_runs(session=Depends(require_session)):
-        runs = eval_service.list_runs()
+    async def eval_runs(request: Request, session=Depends(require_session)):
+        runs = request.app.state.eval_service.list_runs()
         return {"items": runs, "next_cursor": None, "available": True}
 
     @app.post("/api/v1/eval/runs")
     async def create_eval_run(request: Request, session=Depends(require_session)):
         body = await request.json()
         try:
-            return await asyncio.to_thread(eval_service.create_run, body.get("dataset_id", "release-replay"))
+            return await asyncio.to_thread(request.app.state.eval_service.create_run, body.get("dataset_id", "release-replay"))
         except ValueError:
             raise HTTPException(422, "dataset_replay_unavailable") from None
 
     @app.get("/api/v1/eval/runs/{identity}")
-    async def get_eval_run(identity: str, session=Depends(require_session)):
-        run = eval_service.get_run(identity)
+    async def get_eval_run(identity: str, request: Request, session=Depends(require_session)):
+        run = request.app.state.eval_service.get_run(identity)
         if not run:
             raise HTTPException(404, "run_not_found")
         return run
 
     @app.get("/api/v1/eval/runs/{identity}/report")
-    async def get_eval_report(identity: str, session=Depends(require_session)):
-        run = eval_service.get_run(identity)
+    async def get_eval_report(identity: str, request: Request, session=Depends(require_session)):
+        run = request.app.state.eval_service.get_run(identity)
         if not run:
             raise HTTPException(404, "run_not_found")
         return run.get("report", {})
@@ -1065,7 +1072,7 @@ def create_app(settings: Settings | None = None, database=None, redis_client=Non
             nonlocal last_id
             while not await request.is_disconnected():
                 # Recheck expiry and logout during long-lived connections.
-                if not await request.app.state.redis.exists("cg:session:"+digest(request.cookies["cg_session"])):
+                if not await request.app.state.redis.exists(session_key(request.app.state.settings, request.cookies["cg_session"])):
                     break
                 async with request.app.state.database.sessions() as transaction:
                     rows = (await transaction.execute(sa.select(db.events).where(db.events.c.tenant_id==session["tenant_id"],db.events.c.id>last_id).order_by(db.events.c.id).limit(200))).mappings().all()

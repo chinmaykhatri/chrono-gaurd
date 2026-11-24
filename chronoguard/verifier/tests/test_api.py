@@ -1,4 +1,6 @@
 import json
+import secrets
+from argon2 import PasswordHasher
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pydantic import SecretStr
@@ -6,7 +8,7 @@ import fakeredis.aioredis
 from app import db
 from app.config import Settings
 from app.main import create_app
-from app.security import digest
+from app.security import digest, session_key
 
 @pytest.fixture
 async def client(tmp_path):
@@ -59,7 +61,7 @@ async def test_eval_datasets_and_runs(client):
     # Seed authenticated session
     session_id = "test-session-123"
     session_data = json.dumps({"tenant_id": "default", "csrf_token": "csrf-token-123", "authenticated": True})
-    await redis_client.set("cg:session:" + digest(session_id), session_data)
+    await redis_client.set(session_key(c._transport.app.state.settings, session_id), session_data)
     c.cookies.set("cg_session", session_id)
 
     # GET /eval/datasets
@@ -92,7 +94,7 @@ async def test_classes_and_summary(client):
     c, redis_client, _ = client
     session_id = "test-session-456"
     session_data = json.dumps({"tenant_id": "default", "csrf_token": "csrf-token-456", "authenticated": True})
-    await redis_client.set("cg:session:" + digest(session_id), session_data)
+    await redis_client.set(session_key(c._transport.app.state.settings, session_id), session_data)
     c.cookies.set("cg_session", session_id)
 
     # Classes
@@ -115,7 +117,7 @@ async def test_clock_endpoints(client):
     session_id = "test-session-789"
     csrf_token = "csrf-token-789"
     session_data = json.dumps({"tenant_id": "default", "csrf_token": csrf_token, "authenticated": True})
-    await redis_client.set("cg:session:" + digest(session_id), session_data)
+    await redis_client.set(session_key(c._transport.app.state.settings, session_id), session_data)
     c.cookies.set("cg_session", session_id)
 
     # Read clock
@@ -143,7 +145,7 @@ async def test_system_probe(client):
     session_id = "test-session-probe"
     csrf_token = "csrf-token-probe"
     session_data = json.dumps({"tenant_id": "default", "csrf_token": csrf_token, "authenticated": True})
-    await redis_client.set("cg:session:" + digest(session_id), session_data)
+    await redis_client.set(session_key(c._transport.app.state.settings, session_id), session_data)
     c.cookies.set("cg_session", session_id)
 
     headers = {"origin": "http://localhost:3000", "x-csrf-token": csrf_token}
@@ -156,3 +158,52 @@ async def test_system_probe(client):
     assert data["provenance"] == "isolated_redis_probe"
     assert len(data["steps"]) == 4
     assert all(s["ok"] for s in data["steps"])
+
+@pytest.mark.asyncio
+async def test_operator_authentication_origin_csrf_and_tenant(client):
+    c, redis, _ = client
+    cfg = c._transport.app.state.settings
+    password = secrets.token_urlsafe(20)
+    cfg.admin_password_hash = SecretStr(PasswordHasher().hash(password))
+    origin = {"origin": cfg.console_origin}
+    assert (await c.get("/api/v1/auth/session")).status_code == 401
+    assert (await c.get("/api/v1/facts")).status_code == 401
+    assert await redis.keys("cg:operator:*") == []
+    assert (await c.post("/api/v1/auth/login", json={"password": ""}, headers=origin)).status_code == 422
+    assert (await c.post("/api/v1/auth/login", json={"password": "invalid"}, headers=origin)).status_code == 401
+    assert (await c.post("/api/v1/auth/login", json={"password": password})).status_code == 403
+    login = await c.post("/api/v1/auth/login", json={"password": password}, headers=origin)
+    assert login.status_code == 200
+    token = c.cookies["cg_session"]
+    csrf = {"x-csrf-token": login.json()["csrf_token"]}
+    assert "httponly" in login.headers["set-cookie"].lower()
+    assert (await c.get("/api/v1/auth/session")).status_code == 200
+    for headers in (origin, csrf, {**csrf, "origin": "https://example.org"}):
+        assert (await c.post("/api/v1/auth/logout", headers=headers)).status_code == 403
+    preflight = await c.options("/api/v1/auth/session", headers={"origin": "https://example.org",
+                                "access-control-request-method": "GET"})
+    assert "access-control-allow-origin" not in preflight.headers
+    assert (await c.get("/internal/v1/health")).status_code == 401
+    assert (await c.post("/api/v1/auth/logout", headers={**origin, **csrf})).status_code == 200
+    c.cookies.set("cg_session", token)
+    assert (await c.get("/api/v1/auth/session")).status_code == 401
+    await redis.set("cg:session:" + digest(token), json.dumps(login.json()))
+    assert (await c.get("/api/v1/auth/session")).status_code == 401
+    await redis.set(session_key(cfg, token), json.dumps({**login.json(), "tenant_id":"other"}))
+    assert (await c.get("/api/v1/facts")).status_code == 401
+    await redis.set(session_key(cfg, token), json.dumps(login.json()))
+    cfg.session_secret = SecretStr(secrets.token_urlsafe(40))
+    assert (await c.get("/api/v1/auth/session")).status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_login_attempts_expire_and_throttle(client):
+    c, redis, _ = client
+    cfg = c._transport.app.state.settings
+    cfg.admin_password_hash = SecretStr(PasswordHasher().hash(secrets.token_urlsafe(20)))
+    for _ in range(10):
+        assert (await c.post("/api/v1/auth/login", json={"password":"invalid"},
+                             headers={"origin":cfg.console_origin})).status_code == 401
+    assert (await c.post("/api/v1/auth/login", json={"password":"invalid"},
+                         headers={"origin":cfg.console_origin})).status_code == 429
+    assert 0 < await redis.ttl((await redis.keys("cg:login:*"))[0]) <= 60

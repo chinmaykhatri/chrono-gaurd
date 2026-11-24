@@ -13,6 +13,7 @@ end in ``unverifiable`` with a recorded reason.
 import asyncio
 import ipaddress
 import json
+import re
 import secrets
 import socket
 import time
@@ -37,6 +38,19 @@ from app.security import digest, key, safe_public_url
 
 DAY = 86400
 CUTOFF_FALLBACK_DAYS = 550  # Document 4, 4.5.3: unknown models default to 18 months.
+
+
+def uncovered_version(text: str, claims: list[Claim]) -> bool:
+    """Detect explicit version numbers outside the extracted evidence spans."""
+    covered = bytearray(len(text))
+    for claim in claims:
+        start = claim.span[0] if claim.span else text.find(claim.text)
+        if start >= 0 and text.startswith(claim.text, start):
+            covered[start:start + len(claim.text)] = bytes([1]) * len(claim.text)
+    for block in re.finditer(r"```[\s\S]*?```|`[^`\n]+`|https?://[^\s)>]+", text):
+        covered[block.start():block.end()] = bytes([1]) * len(block.group())
+    versions = re.finditer(r"(?<![\w.])v?\d+(?:\.\d+){1,3}(?![\w]|\.\d)", text, re.I)
+    return any(not all(covered[m.start():m.end()]) for m in versions)
 
 
 @dataclass
@@ -838,10 +852,6 @@ class Verifier:
             )
             await self._store_annotation(tenant, response_id, annotation)
             return annotation, [], {}
-        if not extracted and prompt_class not in (Category.SLOW, Category.STATIC):
-            annotation.update(status="partial", reason="no_checkable_claims_extracted")
-            await self._store_annotation(tenant, response_id, annotation)
-            return annotation, [], {}
         extraction_tokens = int(
             extraction_usage.get("input_tokens", 0) + extraction_usage.get("output_tokens", 0)
         )
@@ -857,6 +867,14 @@ class Verifier:
                         model_id=model_id,
                     )
                 )
+
+        incomplete = policy.on_unverifiable == "fail_closed" and uncovered_version(text, extracted)
+        if incomplete or (not extracted and prompt_class not in (Category.SLOW, Category.STATIC)):
+            annotation.update(status="partial", verification_status="verification_unavailable",
+                              reason="uncovered_version" if incomplete else "no_checkable_claims_extracted",
+                              decision="fail_closed" if policy.on_unverifiable == "fail_closed" else "fail_open")
+            await self._store_annotation(tenant, response_id, annotation)
+            return annotation, [], {}
 
         eligible: list[tuple[Claim, float]] = []
         skipped: list[Outcome] = []

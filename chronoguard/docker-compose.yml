@@ -20,7 +20,7 @@ x-verifier: &verifier
     CG_SOURCE_AUTHORITIES: '{"go.dev":1,"nodejs.org":1,"react.dev":1,"python.org":1,"www.python.org":1}'
     CG_ALLOW_SIMULATED_CLOCK: ${CG_ALLOW_SIMULATED_CLOCK:-false}
     CG_STORE_CONTENT: ${CG_STORE_CONTENT:-false}
-    CG_GUARD_ENABLED: ${CG_GUARD_ENABLED:-false}
+    CG_GUARD_ENABLED: ${CG_GUARD_ENABLED:-true}
     CG_SHADOW_ENABLED: ${CG_SHADOW_ENABLED:-false}
     CG_DELTA_ENABLED: ${CG_DELTA_ENABLED:-false}
     CG_DELTA_SOURCE_URLS: "${CG_DELTA_SOURCE_URLS:-[]}"
@@ -88,7 +88,7 @@ services:
       CG_REDIS_URL: redis://:${REDIS_PASSWORD:?Run scripts/bootstrap.py}@redis:6379/0
       CG_VERIFIER_URL: http://verifier:8088
       CG_ALLOW_SIMULATED_CLOCK: ${CG_ALLOW_SIMULATED_CLOCK:-false}
-      CG_GUARD_ENABLED: ${CG_GUARD_ENABLED:-false}
+      CG_GUARD_ENABLED: ${CG_GUARD_ENABLED:-true}
       CG_SHADOW_ENABLED: ${CG_SHADOW_ENABLED:-false}
       CG_DEFAULT_POLICY: ${CG_DEFAULT_POLICY:-standard}
     depends_on:

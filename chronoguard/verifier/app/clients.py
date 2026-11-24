@@ -10,6 +10,7 @@ import httpx
 from pydantic import BaseModel, ValidationError
 
 from app.schemas.contracts import Claim, Evidence, Extraction, Verdict
+from app.scoring.freshness import authoritative_conflict
 from app.security import redact_query, safe_public_url
 
 
@@ -102,19 +103,27 @@ class ModelClient:
         if not model:
             raise DependencyUnavailable("model_not_configured")
         headers = self.internal_headers()
+        schema = strict_schema(result_type)
+        if self.settings.prompt_json_schema:
+            instruction += (" Return exactly one JSON object matching this schema, without Markdown. "
+                            "Use only its fields and enum values. Use null for unknown nullable values. "
+                            + json.dumps(schema, separators=(",", ":")))
         payload = {"model": model, "temperature": 0, "stream": False,
             "messages": [{"role":"system", "content":instruction}, {"role":"user", "content":json.dumps(data, ensure_ascii=False)}],
-            "max_tokens": 4096,
-            "response_format": {"type":"json_schema", "json_schema":{"name":result_type.__name__, "strict":True, "schema":strict_schema(result_type)}}}
+            "max_tokens": 512 if result_type is Verdict else 4096,
+            "response_format": {"type":"json_schema", "json_schema":{"name":result_type.__name__, "strict":True, "schema":schema}}}
+        totals = {"input_tokens": 0, "output_tokens": 0}
         for attempt in range(2):
             try:
                 response = await self.client.post(self.settings.bifrost_url.rstrip("/")+"/v1/chat/completions", json=payload, headers=headers, timeout=20)
                 response.raise_for_status()
                 body = response.json()
                 content = body["choices"][0]["message"]["content"]
-                parsed = result_type.model_validate_json(content)
                 usage = body.get("usage", {})
-                return parsed, {"input_tokens": int(usage.get("prompt_tokens", 0)), "output_tokens": int(usage.get("completion_tokens", 0))}
+                totals["input_tokens"] += int(usage.get("prompt_tokens", 0))
+                totals["output_tokens"] += int(usage.get("completion_tokens", 0))
+                parsed = result_type.model_validate_json(content)
+                return parsed, totals
             except (ValidationError, KeyError, ValueError, TypeError):
                 if attempt:
                     raise DependencyUnavailable("invalid_model_output") from None
@@ -148,6 +157,8 @@ class ModelClient:
         ids = {e.id for e in evidence}
         if (set(verdict.support_ids)|set(verdict.contradict_ids))-ids or set(verdict.support_ids)&set(verdict.contradict_ids):
             return Verdict(verdict="unverifiable", rationale="Invalid evidence references"), usage
+        if authoritative_conflict(verdict, evidence):
+            return Verdict(verdict="unverifiable", rationale="Conflicting authoritative evidence"), usage
         if verdict.verdict == "confirmed":
             supported = [e for e in evidence if e.id in verdict.support_ids]
             qualified = [e for e in supported if (e.published_at and (claim.as_of_hint is None or e.published_at.date() >= claim.as_of_hint)) or (e.published_at is None and e.tier == 1)]

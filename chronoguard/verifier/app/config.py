@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     bifrost_url: str = "http://bifrost:8080"
     bifrost_api_key: SecretStr = SecretStr("")
     extractor_model: str = ""
+    chat_model: str = ""
+    prompt_json_schema: bool = False
     judge_model: str = ""
     judge_escalation_model: str = ""
     tavily_api_key: SecretStr = Field(default=SecretStr(""), validation_alias=AliasChoices("CG_TAVILY_API_KEY", "TAVILY_API_KEY"))
@@ -48,11 +50,13 @@ class Settings(BaseSettings):
     def secure_configuration(self):
         if len(self.internal_key.get_secret_value()) < 32 or len(self.session_secret.get_secret_value()) < 32:
             raise ValueError("Internal and session secrets must each contain at least 32 characters")
-        if self.admin_password_hash.get_secret_value() and not self.admin_password_hash.get_secret_value().startswith("$argon2id$"):
+        if not self.admin_password_hash.get_secret_value().startswith("$argon2id$"):
             raise ValueError("Admin password must be an Argon2id hash")
         origin = urlsplit(self.console_origin)
         if origin.scheme not in ("http", "https") or not origin.netloc or origin.path not in ("", "/") or origin.query or origin.fragment or origin.username:
             raise ValueError("Console origin must be an HTTP(S) origin")
+        if self.environment == "production" and self.allow_simulated_clock:
+            raise ValueError("Simulated clocks require a development or test deployment")
         if self.environment == "production" and origin.scheme != "https":
             raise ValueError("Production requires an HTTPS console origin")
         if self.environment == "production" and self.tavily_base_url != "https://api.tavily.com":

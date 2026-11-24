@@ -1,7 +1,8 @@
+from pathlib import Path
 import asyncio
 from playwright.async_api import async_playwright
 
-ADMIN_PW = "i9aXw7wmQBVZTjNBEwSrALYQ-UOUF4bG"
+ADMIN_PW = (Path(__file__).resolve().parents[1] / "chronoguard" / ".admin-password").read_text(encoding="utf-8").strip()
 BASE_URL = "http://127.0.0.1:5175"
 
 async def run():

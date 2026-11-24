@@ -86,3 +86,14 @@ def test_score_confirmed_high_freshness():
     assert res["freshness"] > 70.0
     assert res["support_confidence"] > 0.7
 
+
+
+def test_conflicting_official_reports_withhold_and_subdomains_do_not_count_twice():
+    support = make_ev("support", 1, "agency.gov")
+    oppose = make_ev("oppose", 1, "publisher.org")
+    verdict = Verdict(verdict="outdated", support_ids=[support.id], contradict_ids=[oppose.id])
+    assert invalidation_allowed(verdict, [support, oppose]) == (False, "conflicting_authoritative_evidence")
+    first = make_ev("a", 2, "news.publisher.org")
+    second = make_ev("b", 2, "docs.publisher.org")
+    verdict = Verdict(verdict="contradicted", contradict_ids=["a","b"])
+    assert not invalidation_allowed(verdict, [first, second])[0]

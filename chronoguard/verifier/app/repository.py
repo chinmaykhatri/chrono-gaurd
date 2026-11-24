@@ -34,16 +34,7 @@ class Repository:
                 await self.event(tenant, kind, payload, session)
 
     async def seed(self, tenant):
-        try:
-            await self.database.init_tables()
-        except Exception:
-            pass
         async with self.database.sessions.begin() as session:
-            try:
-                await session.execute(sa.text("ALTER TABLE requests ADD COLUMN IF NOT EXISTS decision_shadow VARCHAR(32)"))
-                await session.execute(sa.text("ALTER TABLE requests ADD COLUMN IF NOT EXISTS shadow_reason TEXT"))
-            except Exception:
-                pass
             existing = set((await session.execute(sa.select(db.policies.c.name).where(db.policies.c.tenant_id == tenant))).scalars())
             for name, policy in POLICIES.items():
                 if name not in existing:
@@ -143,13 +134,18 @@ class Repository:
 
     async def list(self, table, tenant, limit=50, cursor=None, filters=None):
         query = sa.select(table).where(table.c.tenant_id == tenant)
-        if cursor:
-            query = query.where(table.c.id < cursor)
         for column, value in (filters or {}).items():
             if value is not None and column in table.c:
                 query = query.where(table.c[column] == value)
-        query = query.order_by(table.c.id.desc()).limit(limit+1)
+        query = query.order_by(table.c.created_at.desc(), table.c.id.desc()).limit(limit+1)
         async with self.database.sessions() as session:
+            if cursor:
+                anchor = await session.scalar(sa.select(table.c.created_at).where(
+                    table.c.tenant_id == tenant, table.c.id == cursor))
+                if anchor is None:
+                    return {"items": [], "next_cursor": None}
+                query = query.where(sa.or_(table.c.created_at < anchor,
+                                           sa.and_(table.c.created_at == anchor, table.c.id < cursor)))
             rows = [self.present(table, r) for r in (await session.execute(query)).mappings()]
             if table is db.requests and rows:
                 request_ids = [row["id"] for row in rows]

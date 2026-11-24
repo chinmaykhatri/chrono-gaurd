@@ -112,7 +112,7 @@ def run(gateway, fixture, password, console=None):
             repaired = chat("revalidate_and_repair", "What is the latest major Go release?", "-release")
             assert repaired["status"] == 200 and repaired["decision"] == "regenerated" and "Go 1.25" in repaired["text"], repaired
             assert repaired["calls"].get("search", 0) == 1, repaired
-            cache_meta = client.get("/api/v1/cache-entries", params={"limit": 100})
+            cache_meta = client.get("/api/v1/cache-entries", params={"bifrost_cache_id": second["cache_id"], "limit": 1})
             cache_meta.raise_for_status()
             linked = next(row for row in cache_meta.json()["items"] if row.get("bifrost_cache_id") == second["cache_id"])
             assert linked["status"] == "stale", linked

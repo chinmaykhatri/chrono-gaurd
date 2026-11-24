@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, asRecord, RecordData } from '../api/client';
+import { API_BASE, api, asRecord, RecordData } from '../api/client';
 
 export function useResource<T>(path: string | null, revision = 0) {
   const [data, setData] = useState<T | null>(null);
@@ -24,7 +24,7 @@ export function useEvents(enabled: boolean) {
   const timer = useRef<ReturnType<typeof setTimeout>>();
   useEffect(() => {
     if (!enabled) return;
-    const stream = new EventSource('/api/v1/events/stream', { withCredentials: true });
+    const stream = new EventSource(API_BASE + '/api/v1/events/stream', { withCredentials: true });
     stream.onopen = () => setState('Connected');
     stream.onerror = () => setState('Reconnecting');
     function receive(event: MessageEvent) {

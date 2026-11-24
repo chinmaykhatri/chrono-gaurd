@@ -5,7 +5,7 @@ from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.db import metadata
+from app.db import async_database_url, metadata
 
 
 def run(connection):
@@ -16,7 +16,7 @@ def run(connection):
 
 async def online():
     url = os.environ.get("CG_DATABASE_URL") or os.environ["DATABASE_URL"]
-    engine = create_async_engine(url, poolclass=pool.NullPool)
+    engine = create_async_engine(async_database_url(url), poolclass=pool.NullPool)
     async with engine.connect() as connection:
         await connection.run_sync(run)
     await engine.dispose()

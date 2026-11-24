@@ -36,6 +36,20 @@ The demo asserts two cache entries sharing a release fact, a fresh semantic hit,
 
 For live integrations, set `OPENAI_API_KEY` and `TAVILY_API_KEY` in the generated `.env` and start the base stack with `docker compose up --build -d --wait`. The base stack binds the console and gateway to loopback. Keep the replay and live runs in distinct Compose projects.
 
+## Use the FreeModel provider
+
+Set `FREEMODEL_API_KEY` and a valid `TAVILY_API_KEY` in the local `.env`. Start Ollama on the Docker Desktop host and download MiniLM for semantic caching. Bifrost uses the OpenAI-compatible transport to route `openai/claude-opus-5` to FreeModel. The Playground lists this model automatically. MiniLM has a separate vector collection because it uses a different embedding model and dimension.
+
+```powershell
+ollama pull all-minilm
+$env:NGINX_PORT = "18081"
+$env:CG_CONSOLE_ORIGIN = "http://localhost:18081"
+docker compose -f docker-compose.yml -f deploy/compose.freemodel.yml -p chronoguard-freemodel up --build -d --wait
+Get-Content -Raw scripts/provider_proof.py | docker compose -f docker-compose.yml -f deploy/compose.freemodel.yml -p chronoguard-freemodel exec -T verifier /app/.venv/bin/python -
+```
+
+Open the [FreeModel console](http://localhost:18081). The provider check sends short public prompts through Bifrost, checks local vectors and validates extraction and judging against a supplied Go release statement. It reports live Tavily retrieval and returned credits when a valid key is configured. [Recorded provider check](eval/reports/freemodel-live.json)
+
 ## Evaluate the policy
 
 ```sh

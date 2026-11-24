@@ -20,16 +20,19 @@ services:
     rootDir: chronoguard
     dockerfilePath: verifier/Dockerfile
     dockerContext: .
+    dockerCommand: sh -c "/app/.venv/bin/alembic upgrade head && exec /app/.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8088}"
     healthCheckPath: /readyz
     envVars:
       - key: CG_ENVIRONMENT
-        value: development
+        value: production
       - key: CG_CONSOLE_ORIGIN
         value: https://chronoguard-console.onrender.com
       - key: CG_DATABASE_URL
         fromDatabase:
           name: chronoguard-db
           property: connectionString
+      - key: CG_BIFROST_URL
+        sync: false
       - key: CG_REDIS_URL
         sync: false
       - key: CG_INTERNAL_KEY
@@ -37,17 +40,17 @@ services:
       - key: CG_SESSION_SECRET
         generateValue: true
       - key: CG_ADMIN_PASSWORD_HASH
-        value: ""
+        sync: false
       - key: CG_EXTRACTOR_MODEL
         value: openai/gpt-4o-mini
       - key: CG_JUDGE_MODEL
         value: openai/gpt-4o-mini
       - key: CG_ALLOW_SIMULATED_CLOCK
-        value: "true"
+        value: "false"
       - key: CG_STORE_CONTENT
         value: "false"
       - key: CG_GUARD_ENABLED
-        value: "false"
+        value: "true"
       - key: CG_SHADOW_ENABLED
         value: "false"
       - key: CG_DELTA_ENABLED
@@ -90,10 +93,11 @@ services:
         value: public, max-age=31536000, immutable
     routes:
       - type: rewrite
+        source: /api/v1/*
+        destination: https://chronoguard-verifier.onrender.com/api/v1/*
+      - type: rewrite
         source: /*
         destination: /index.html
     envVars:
-      - key: VITE_API_BASE_URL
-        value: https://chronoguard-verifier.onrender.com
       - key: NODE_VERSION
         value: "22"

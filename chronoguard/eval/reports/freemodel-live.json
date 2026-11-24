@@ -1,0 +1,54 @@
+{
+  "scope": "real Bifrost with FreeModel chat, local MiniLM vectors and supplied archival evidence",
+  "external_provider": "freemodel.in",
+  "model": "openai/claude-opus-5",
+  "checked_at": "2026-11-24T19:42:33.129512+00:00",
+  "gateway_chat": [
+    {
+      "status": 200,
+      "prompt": "What is the capital of Austria? Answer in one sentence.",
+      "returned_vienna": true,
+      "cache_hit": false,
+      "cache_type": null,
+      "decision": "passthrough"
+    },
+    {
+      "status": 200,
+      "prompt": "What is the capital city of Austria? Answer in one sentence.",
+      "returned_vienna": true,
+      "cache_hit": true,
+      "cache_type": "semantic",
+      "decision": "fail_open"
+    }
+  ],
+  "embeddings": {
+    "model": "ollama/all-minilm:latest",
+    "dimensions": [
+      384,
+      384
+    ],
+    "distinct_inputs_distinct_vectors": true
+  },
+  "extraction": {
+    "model": "openai/claude-opus-5",
+    "valid": true,
+    "claims": 1,
+    "usage": {
+      "input_tokens": 2276,
+      "output_tokens": 785
+    }
+  },
+  "judge": {
+    "model": "openai/claude-opus-5",
+    "valid": true,
+    "verdict": "confirmed",
+    "usage": {
+      "input_tokens": 2220,
+      "output_tokens": 183
+    }
+  },
+  "live_tavily": {
+    "status": "replacement_key_required"
+  },
+  "passed": true
+}

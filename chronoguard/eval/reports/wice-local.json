@@ -1,0 +1,891 @@
+{
+  "source": "https://raw.githubusercontent.com/ryokamoi/wice/ddeb6c183665e2a20c5f03c5aa07f03888b9870f/data/entailment_retrieval/subclaim/test.jsonl",
+  "sha256": "3202b7bff5979dfbca745f48edd8da5ad166da0886fd15042cc1ab9d2010ee19",
+  "model": "qwen2.5:1.5b",
+  "model_digest": "65ec06548149b04c096a120e4a6da9d4017ea809c91734ea5631e89f96ddc57b",
+  "offline_read_timeout_seconds": 90,
+  "sampling": "Eight per published WiCE label, ranked by sha256('chronoguard-v1/'+id).",
+  "method": "Top six overlapping sentences from the supplied document. Gold supporting sentence indices are never inputs. Excerpts are treated as trusted archival evidence. WiCE labels support, not date of change. Extraction is exact span recovery on pairs of published subclaims.",
+  "judgement_metrics": {
+    "false_freshness": {
+      "numerator": 3,
+      "denominator": 16,
+      "rate": 0.1875
+    },
+    "false_invalidation": {
+      "numerator": 0,
+      "denominator": 8,
+      "rate": 0.0
+    },
+    "confirmed_supported": {
+      "numerator": 2,
+      "denominator": 8,
+      "rate": 0.25
+    },
+    "verdicts": {
+      "unverifiable": 11,
+      "outdated": 6,
+      "confirmed": 5,
+      "error": 2
+    }
+  },
+  "extraction_metrics": {
+    "precision": {
+      "numerator": 10,
+      "denominator": 10,
+      "rate": 1.0
+    },
+    "recall": {
+      "numerator": 10,
+      "denominator": 24,
+      "rate": 0.4167
+    }
+  },
+  "judgements": [
+    {
+      "id": "test02139-1",
+      "gold": "supported",
+      "input_sentence_ids": [
+        "s12",
+        "s23",
+        "s24",
+        "s26",
+        "s35",
+        "s41"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1154,
+        "output_tokens": 191
+      }
+    },
+    {
+      "id": "test02178-0",
+      "gold": "supported",
+      "input_sentence_ids": [
+        "s33",
+        "s18",
+        "s21",
+        "s23",
+        "s24",
+        "s49"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1277,
+        "output_tokens": 148
+      }
+    },
+    {
+      "id": "test01572-1",
+      "gold": "supported",
+      "input_sentence_ids": [
+        "s42",
+        "s9",
+        "s10",
+        "s43",
+        "s2",
+        "s3"
+      ],
+      "verdict": "outdated",
+      "evict": false,
+      "eviction_rule": "evict_rule_unmet",
+      "cited": [
+        "s42",
+        "s9",
+        "s10",
+        "s43",
+        "s2",
+        "s3"
+      ],
+      "usage": {
+        "input_tokens": 1034,
+        "output_tokens": 140
+      }
+    },
+    {
+      "id": "test01486-3",
+      "gold": "supported",
+      "input_sentence_ids": [
+        "s10",
+        "s3",
+        "s4",
+        "s6",
+        "s7",
+        "s8"
+      ],
+      "verdict": "confirmed",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [
+        "s10",
+        "s3",
+        "s4",
+        "s6",
+        "s7",
+        "s8"
+      ],
+      "usage": {
+        "input_tokens": 1042,
+        "output_tokens": 180
+      }
+    },
+    {
+      "id": "test00931-0",
+      "gold": "supported",
+      "input_sentence_ids": [
+        "s199",
+        "s507",
+        "s550",
+        "s66",
+        "s218",
+        "s247"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1100,
+        "output_tokens": 243
+      }
+    },
+    {
+      "id": "test01759-1",
+      "gold": "supported",
+      "input_sentence_ids": [
+        "s19",
+        "s20",
+        "s24",
+        "s25",
+        "s14",
+        "s21"
+      ],
+      "verdict": "error",
+      "evict": false,
+      "error": "invalid_model_output"
+    },
+    {
+      "id": "test02428-1",
+      "gold": "supported",
+      "input_sentence_ids": [
+        "s8",
+        "s5",
+        "s6",
+        "s13",
+        "s20",
+        "s11"
+      ],
+      "verdict": "confirmed",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [
+        "s8",
+        "s5",
+        "s6",
+        "s13",
+        "s20",
+        "s11"
+      ],
+      "usage": {
+        "input_tokens": 1003,
+        "output_tokens": 114
+      }
+    },
+    {
+      "id": "test03525-2",
+      "gold": "supported",
+      "input_sentence_ids": [
+        "s50",
+        "s44",
+        "s49",
+        "s53",
+        "s41",
+        "s42"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1104,
+        "output_tokens": 180
+      }
+    },
+    {
+      "id": "test01029-3",
+      "gold": "partially_supported",
+      "input_sentence_ids": [
+        "s18",
+        "s26",
+        "s10",
+        "s11",
+        "s15",
+        "s19"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1197,
+        "output_tokens": 167
+      }
+    },
+    {
+      "id": "test01467-2",
+      "gold": "partially_supported",
+      "input_sentence_ids": [
+        "s27",
+        "s40",
+        "s24",
+        "s34",
+        "s47",
+        "s31"
+      ],
+      "verdict": "confirmed",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [
+        "s27",
+        "s40",
+        "s24",
+        "s34",
+        "s47",
+        "s31"
+      ],
+      "usage": {
+        "input_tokens": 1099,
+        "output_tokens": 156
+      }
+    },
+    {
+      "id": "test02557-0",
+      "gold": "partially_supported",
+      "input_sentence_ids": [
+        "s7",
+        "s16",
+        "s27",
+        "s33",
+        "s55",
+        "s67"
+      ],
+      "verdict": "confirmed",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [
+        "s7",
+        "s16",
+        "s27",
+        "s33",
+        "s55",
+        "s67"
+      ],
+      "usage": {
+        "input_tokens": 1045,
+        "output_tokens": 168
+      }
+    },
+    {
+      "id": "test00329-2",
+      "gold": "partially_supported",
+      "input_sentence_ids": [
+        "s23",
+        "s25",
+        "s22",
+        "s24",
+        "s26",
+        "s29"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1041,
+        "output_tokens": 119
+      }
+    },
+    {
+      "id": "test01035-4",
+      "gold": "partially_supported",
+      "input_sentence_ids": [
+        "s13",
+        "s24",
+        "s6",
+        "s7",
+        "s8",
+        "s12"
+      ],
+      "verdict": "confirmed",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [
+        "s13",
+        "s24",
+        "s6",
+        "s7",
+        "s8",
+        "s12"
+      ],
+      "usage": {
+        "input_tokens": 956,
+        "output_tokens": 129
+      }
+    },
+    {
+      "id": "test00164-1",
+      "gold": "partially_supported",
+      "input_sentence_ids": [
+        "s79",
+        "s3",
+        "s10",
+        "s22",
+        "s23",
+        "s27"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 928,
+        "output_tokens": 178
+      }
+    },
+    {
+      "id": "test02423-1",
+      "gold": "partially_supported",
+      "input_sentence_ids": [
+        "s7",
+        "s1",
+        "s2",
+        "s3",
+        "s5",
+        "s6"
+      ],
+      "verdict": "outdated",
+      "evict": false,
+      "eviction_rule": "evict_rule_unmet",
+      "cited": [
+        "s7",
+        "s5"
+      ],
+      "usage": {
+        "input_tokens": 1030,
+        "output_tokens": 172
+      }
+    },
+    {
+      "id": "test01371-1",
+      "gold": "partially_supported",
+      "input_sentence_ids": [
+        "s9",
+        "s7",
+        "s10",
+        "s12",
+        "s5",
+        "s6"
+      ],
+      "verdict": "error",
+      "evict": false,
+      "error": "invalid_model_output"
+    },
+    {
+      "id": "test03456-2",
+      "gold": "not_supported",
+      "input_sentence_ids": [
+        "s7",
+        "s12",
+        "s13",
+        "s16",
+        "s24",
+        "s36"
+      ],
+      "verdict": "outdated",
+      "evict": false,
+      "eviction_rule": "evict_rule_unmet",
+      "cited": [
+        "s7",
+        "s12",
+        "s13",
+        "s16",
+        "s24",
+        "s36"
+      ],
+      "usage": {
+        "input_tokens": 996,
+        "output_tokens": 173
+      }
+    },
+    {
+      "id": "test03752-1",
+      "gold": "not_supported",
+      "input_sentence_ids": [
+        "s49",
+        "s52",
+        "s53",
+        "s58",
+        "s63",
+        "s65"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 926,
+        "output_tokens": 155
+      }
+    },
+    {
+      "id": "test01131-2",
+      "gold": "not_supported",
+      "input_sentence_ids": [
+        "s17",
+        "s21",
+        "s22",
+        "s2",
+        "s3",
+        "s4"
+      ],
+      "verdict": "outdated",
+      "evict": false,
+      "eviction_rule": "evict_rule_unmet",
+      "cited": [
+        "s17",
+        "s21",
+        "s22",
+        "s2",
+        "s3",
+        "s4"
+      ],
+      "usage": {
+        "input_tokens": 931,
+        "output_tokens": 142
+      }
+    },
+    {
+      "id": "test02547-2",
+      "gold": "not_supported",
+      "input_sentence_ids": [
+        "s153",
+        "s170",
+        "s171",
+        "s177",
+        "s8",
+        "s9"
+      ],
+      "verdict": "outdated",
+      "evict": false,
+      "eviction_rule": "evict_rule_unmet",
+      "cited": [
+        "s153",
+        "s170",
+        "s171",
+        "s177",
+        "s8",
+        "s9"
+      ],
+      "usage": {
+        "input_tokens": 1009,
+        "output_tokens": 147
+      }
+    },
+    {
+      "id": "test02729-1",
+      "gold": "not_supported",
+      "input_sentence_ids": [
+        "s7",
+        "s12",
+        "s4",
+        "s8",
+        "s10",
+        "s11"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1128,
+        "output_tokens": 155
+      }
+    },
+    {
+      "id": "test01493-0",
+      "gold": "not_supported",
+      "input_sentence_ids": [
+        "s8",
+        "s28",
+        "s3",
+        "s4",
+        "s6",
+        "s7"
+      ],
+      "verdict": "outdated",
+      "evict": false,
+      "eviction_rule": "evict_rule_unmet",
+      "cited": [
+        "s28",
+        "s3",
+        "s4",
+        "s6",
+        "s7"
+      ],
+      "usage": {
+        "input_tokens": 881,
+        "output_tokens": 148
+      }
+    },
+    {
+      "id": "test02459-0",
+      "gold": "not_supported",
+      "input_sentence_ids": [
+        "s2",
+        "s10",
+        "s11",
+        "s14",
+        "s1",
+        "s3"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1021,
+        "output_tokens": 170
+      }
+    },
+    {
+      "id": "test02553-2",
+      "gold": "not_supported",
+      "input_sentence_ids": [
+        "s9",
+        "s10",
+        "s12",
+        "s14",
+        "s16",
+        "s17"
+      ],
+      "verdict": "unverifiable",
+      "evict": false,
+      "eviction_rule": "not_contradicted",
+      "cited": [],
+      "usage": {
+        "input_tokens": 1053,
+        "output_tokens": 152
+      }
+    }
+  ],
+  "extractions": [
+    {
+      "ids": [
+        "test02139-1",
+        "test02178-0"
+      ],
+      "reference_spans": [
+        [
+          0,
+          48
+        ],
+        [
+          49,
+          75
+        ]
+      ],
+      "predicted_spans": [
+        [
+          0,
+          48
+        ],
+        [
+          49,
+          75
+        ]
+      ],
+      "exact_matches": 2,
+      "usage": {
+        "input_tokens": 120,
+        "output_tokens": 231
+      }
+    },
+    {
+      "ids": [
+        "test01572-1",
+        "test01486-3"
+      ],
+      "reference_spans": [
+        [
+          0,
+          34
+        ],
+        [
+          35,
+          83
+        ]
+      ],
+      "predicted_spans": [],
+      "exact_matches": 0,
+      "usage": {
+        "input_tokens": 112,
+        "output_tokens": 9
+      }
+    },
+    {
+      "ids": [
+        "test00931-0",
+        "test01759-1"
+      ],
+      "reference_spans": [
+        [
+          0,
+          81
+        ],
+        [
+          82,
+          204
+        ]
+      ],
+      "predicted_spans": [
+        [
+          0,
+          81
+        ],
+        [
+          82,
+          204
+        ]
+      ],
+      "exact_matches": 2,
+      "usage": {
+        "input_tokens": 133,
+        "output_tokens": 238
+      }
+    },
+    {
+      "ids": [
+        "test02428-1",
+        "test03525-2"
+      ],
+      "reference_spans": [
+        [
+          0,
+          42
+        ],
+        [
+          43,
+          111
+        ]
+      ],
+      "predicted_spans": [
+        [
+          0,
+          42
+        ],
+        [
+          43,
+          111
+        ]
+      ],
+      "exact_matches": 2,
+      "usage": {
+        "input_tokens": 128,
+        "output_tokens": 302
+      }
+    },
+    {
+      "ids": [
+        "test01029-3",
+        "test01467-2"
+      ],
+      "reference_spans": [
+        [
+          0,
+          134
+        ],
+        [
+          135,
+          248
+        ]
+      ],
+      "predicted_spans": [],
+      "exact_matches": 0,
+      "error": "invalid_model_output"
+    },
+    {
+      "ids": [
+        "test02557-0",
+        "test00329-2"
+      ],
+      "reference_spans": [
+        [
+          0,
+          30
+        ],
+        [
+          31,
+          68
+        ]
+      ],
+      "predicted_spans": [],
+      "exact_matches": 0,
+      "error": "invalid_model_output"
+    },
+    {
+      "ids": [
+        "test01035-4",
+        "test00164-1"
+      ],
+      "reference_spans": [
+        [
+          0,
+          48
+        ],
+        [
+          49,
+          75
+        ]
+      ],
+      "predicted_spans": [
+        [
+          49,
+          75
+        ]
+      ],
+      "exact_matches": 1,
+      "usage": {
+        "input_tokens": 119,
+        "output_tokens": 275
+      }
+    },
+    {
+      "ids": [
+        "test02423-1",
+        "test01371-1"
+      ],
+      "reference_spans": [
+        [
+          0,
+          62
+        ],
+        [
+          63,
+          101
+        ]
+      ],
+      "predicted_spans": [
+        [
+          63,
+          101
+        ]
+      ],
+      "exact_matches": 1,
+      "usage": {
+        "input_tokens": 121,
+        "output_tokens": 305
+      }
+    },
+    {
+      "ids": [
+        "test03456-2",
+        "test03752-1"
+      ],
+      "reference_spans": [
+        [
+          0,
+          60
+        ],
+        [
+          61,
+          143
+        ]
+      ],
+      "predicted_spans": [
+        [
+          0,
+          60
+        ],
+        [
+          61,
+          143
+        ]
+      ],
+      "exact_matches": 2,
+      "usage": {
+        "input_tokens": 122,
+        "output_tokens": 265
+      }
+    },
+    {
+      "ids": [
+        "test01131-2",
+        "test02547-2"
+      ],
+      "reference_spans": [
+        [
+          0,
+          36
+        ],
+        [
+          37,
+          66
+        ]
+      ],
+      "predicted_spans": [],
+      "exact_matches": 0,
+      "usage": {
+        "input_tokens": 105,
+        "output_tokens": 225
+      }
+    },
+    {
+      "ids": [
+        "test02729-1",
+        "test01493-0"
+      ],
+      "reference_spans": [
+        [
+          0,
+          49
+        ],
+        [
+          50,
+          86
+        ]
+      ],
+      "predicted_spans": [],
+      "exact_matches": 0,
+      "usage": {
+        "input_tokens": 119,
+        "output_tokens": 252
+      }
+    },
+    {
+      "ids": [
+        "test02459-0",
+        "test02553-2"
+      ],
+      "reference_spans": [
+        [
+          0,
+          39
+        ],
+        [
+          40,
+          89
+        ]
+      ],
+      "predicted_spans": [],
+      "exact_matches": 0,
+      "error": "invalid_model_output"
+    }
+  ]
+}

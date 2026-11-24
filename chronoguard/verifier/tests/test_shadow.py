@@ -6,7 +6,7 @@ import fakeredis.aioredis
 from app import db
 from app.config import Settings
 from app.main import create_app
-from app.security import digest
+from app.security import digest, session_key
 
 INTERNAL_KEY = "k" * 40
 
@@ -110,7 +110,7 @@ async def test_roi_endpoint_comprehensive(shadow_client):
     # 1. Authenticate console session
     session_id = "test-session-roi"
     session_data = json.dumps({"tenant_id": "default", "csrf_token": "csrf-roi", "authenticated": True})
-    await redis_client.set("cg:session:" + digest(session_id), session_data)
+    await redis_client.set(session_key(c._transport.app.state.settings, session_id), session_data)
     c.cookies.set("cg_session", session_id)
 
     # 2. Record 3 requests:

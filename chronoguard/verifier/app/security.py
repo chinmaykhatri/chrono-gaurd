@@ -48,36 +48,47 @@ async def require_internal(request: Request):
         raise HTTPException(401, "unauthorized")
 
 
-async def require_session(request: Request):
-    session_id = request.cookies.get("cg_session", "")
-    if session_id:
-        session_key = "cg:session:" + digest(session_id)
-        raw = await request.app.state.redis.get(session_key)
-        if raw:
-            session = json.loads(raw)
-            if request.method not in ("GET", "HEAD", "OPTIONS"):
-                origin = request.headers.get("origin") or ""
-                valid_origin = (origin == request.app.state.settings.console_origin.rstrip("/")) or (
-                    request.app.state.settings.environment == "development"
-                    and (origin.startswith("http://localhost:") or origin.startswith("http://127.0.0.1:"))
-                ) or not origin
-                if not valid_origin:
-                    raise HTTPException(403, "invalid_origin")
-                csrf = request.headers.get("x-csrf-token", "")
-                if csrf and not hmac.compare_digest(csrf, session.get("csrf_token", "")):
-                    raise HTTPException(403, "invalid_csrf_token")
-            return session
+def session_key(settings, token: str) -> str:
+    # A new signing key or password invalidates every earlier session.
+    material = settings.admin_password_hash.get_secret_value() + ":" + token
+    signature = hmac.digest(settings.session_secret.get_secret_value().encode(), material.encode(), "sha256").hex()
+    return "cg:operator:v2:" + signature
 
-    # Open access: auto-generate a valid session so anyone can freely access the console
-    guest_id, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-    session = {"tenant_id": request.app.state.settings.tenant_id, "csrf_token": csrf, "authenticated": True}
-    await request.app.state.redis.set("cg:session:" + digest(guest_id), json.dumps(session), ex=request.app.state.settings.session_ttl_seconds)
+
+def require_origin(request: Request):
+    if request.headers.get("origin") != request.app.state.settings.console_origin.rstrip("/"):
+        raise HTTPException(403, "invalid_origin")
+
+
+async def require_session(request: Request):
+    settings = request.app.state.settings
+    token = request.cookies.get("cg_session")
+    raw = await request.app.state.redis.get(session_key(settings, token)) if token else None
+    session = json.loads(raw) if raw else {}
+    if session.get("authenticated") is not True or session.get("tenant_id") != settings.tenant_id:
+        raise HTTPException(401, "unauthorized")
+    if request.method not in ("GET", "HEAD", "OPTIONS"):
+        require_origin(request)
+        csrf = request.headers.get("x-csrf-token", "")
+        if not csrf or not hmac.compare_digest(csrf.encode(), session["csrf_token"].encode()):
+            raise HTTPException(403, "invalid_csrf_token")
     return session
 
 
-async def login(request: Request, password: str = ""):
+async def login(request: Request, password: str):
     settings = request.app.state.settings
-    session_id, csrf = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
-    session = {"tenant_id": settings.tenant_id, "csrf_token": csrf, "authenticated": True}
-    await request.app.state.redis.set("cg:session:" + digest(session_id), json.dumps(session), ex=settings.session_ttl_seconds)
-    return session_id, session
+    require_origin(request)
+    address = request.client.host if request.client else "unknown"
+    counter = "cg:login:" + digest(address)
+    async with request.app.state.redis.pipeline(transaction=True) as pipeline:
+        count, _ = await pipeline.incr(counter).expire(counter, 60, nx=True).execute()
+    if count > 10:
+        raise HTTPException(429, "rate_limited")
+    try:
+        await run_in_threadpool(PasswordHasher().verify, settings.admin_password_hash.get_secret_value(), password)
+    except (VerificationError, ValueError):
+        raise HTTPException(401, "unauthorized") from None
+    token = secrets.token_urlsafe(32)
+    session = {"tenant_id": settings.tenant_id, "csrf_token": secrets.token_urlsafe(32), "authenticated": True}
+    await request.app.state.redis.set(session_key(settings, token), json.dumps(session), ex=settings.session_ttl_seconds)
+    return token, session

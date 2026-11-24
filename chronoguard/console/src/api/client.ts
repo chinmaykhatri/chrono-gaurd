@@ -7,7 +7,7 @@ export class ApiError extends Error {
 let csrfToken = '';
 export function setCsrfToken(token: string) { csrfToken = token; }
 const metaEnv = (import.meta as unknown as { env?: Record<string, string | undefined> }).env;
-const API_BASE = (metaEnv?.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
+export const API_BASE = (metaEnv?.VITE_API_BASE_URL ?? '').replace(/\/+$/, '');
 
 export async function api<T = RecordData>(path: string, options: RequestInit = {}): Promise<T> {
   if (!path.startsWith('/') || path.startsWith('//') || path.includes('://')) throw new Error('API path must be relative.');

@@ -1,0 +1,32 @@
+{
+  "timestamp": "2026-11-23T20:19:06.947846+00:00",
+  "scope": "chromium_docker_replay",
+  "browser": "148.0.7778.96",
+  "webgl": true,
+  "passed": true,
+  "checks": [
+    "Render the verification clock",
+    "Sign in",
+    "Open Overview",
+    "Open Playground",
+    "Open Live feed",
+    "Open Cache explorer",
+    "Open Fact ledger",
+    "Open Policies",
+    "Open Costs & latency",
+    "Open ROI report",
+    "Open Evaluation lab",
+    "Open Settings",
+    "Rotate by keyboard, pointer and scroll, pause and reset",
+    "Display the gateway's frozen UTC time and restore real time",
+    "Send a Playground request and inspect the answer",
+    "Open a persisted cache manifest",
+    "Read the fact evidence and reverify a linked entry",
+    "Save the existing operator policy",
+    "Run the evaluation and export all 4,672 observations",
+    "Export ROI data from recorded requests",
+    "Open all ten pages using the mobile navigation",
+    "Sign out",
+    "Use the static-face fallback with WebGL disabled and reduced motion enabled"
+  ]
+}

@@ -1,0 +1,233 @@
+{
+  "provenance": "bifrost_http_fixture_replay",
+  "scenario_scope": "release-replay-7872b3e5fdce4d93801077cd2a8ae713",
+  "passed": true,
+  "rows": [
+    {
+      "case": "warm_release_answer",
+      "status": 200,
+      "latency_ms": 291.29,
+      "cache_id": "89faf6d0-5380-5867-a6fa-752b7150a498",
+      "cache_hit": false,
+      "cache_type": null,
+      "decision": "passthrough",
+      "shadow_decision": null,
+      "response_id": "961e3eb7-2bcd-4af3-a026-3afe93c3953a",
+      "error": null,
+      "calls": {
+        "embedding": 1,
+        "generation": 1,
+        "extraction": 1,
+        "search": 1,
+        "judge": 1
+      },
+      "text": "Go 1.24 is the latest major Go release."
+    },
+    {
+      "case": "warm_release_with_static_control",
+      "status": 200,
+      "latency_ms": 84.78,
+      "cache_id": "7f626630-9900-5217-a443-4f5f8e64ebae",
+      "cache_hit": false,
+      "cache_type": null,
+      "decision": "passthrough",
+      "shadow_decision": null,
+      "response_id": "4a975d8f-6a9c-4432-a6c0-a78b3366fe13",
+      "error": null,
+      "calls": {
+        "embedding": 1,
+        "generation": 1,
+        "extraction": 1,
+        "search": 0,
+        "judge": 0
+      },
+      "text": "Go 1.24 is the latest major Go release. 2 + 2 = 4."
+    },
+    {
+      "case": "fresh_paraphrase",
+      "status": 200,
+      "latency_ms": 14.92,
+      "cache_id": "89faf6d0-5380-5867-a6fa-752b7150a498",
+      "cache_hit": true,
+      "cache_type": "semantic",
+      "decision": "serve",
+      "shadow_decision": null,
+      "response_id": "961e3eb7-2bcd-4af3-a026-3afe93c3953a",
+      "error": null,
+      "calls": {
+        "embedding": 1,
+        "generation": 0,
+        "extraction": 0,
+        "search": 0,
+        "judge": 0
+      },
+      "text": "Go 1.24 is the latest major Go release."
+    },
+    {
+      "case": "shadow_observes_due_hit",
+      "status": 200,
+      "latency_ms": 4.18,
+      "cache_id": "89faf6d0-5380-5867-a6fa-752b7150a498",
+      "cache_hit": true,
+      "cache_type": "direct",
+      "decision": "passthrough",
+      "shadow_decision": "revalidate_blocking",
+      "response_id": "961e3eb7-2bcd-4af3-a026-3afe93c3953a",
+      "error": null,
+      "calls": {
+        "embedding": 0,
+        "generation": 0,
+        "extraction": 0,
+        "search": 0,
+        "judge": 0
+      },
+      "text": "Go 1.24 is the latest major Go release."
+    },
+    {
+      "case": "revalidate_and_repair",
+      "status": 200,
+      "latency_ms": 118.25,
+      "cache_id": "89faf6d0-5380-5867-a6fa-752b7150a498",
+      "cache_hit": true,
+      "cache_type": "direct",
+      "decision": "regenerated",
+      "shadow_decision": null,
+      "response_id": "576f96cf-24e9-448b-a0cb-2664964cf228",
+      "error": null,
+      "calls": {
+        "embedding": 0,
+        "generation": 1,
+        "extraction": 1,
+        "search": 1,
+        "judge": 2
+      },
+      "text": "Go 1.25 is the latest major Go release."
+    },
+    {
+      "case": "strict_refuses_during_outage",
+      "status": 503,
+      "latency_ms": 33.63,
+      "cache_id": "7f626630-9900-5217-a443-4f5f8e64ebae",
+      "cache_hit": false,
+      "cache_type": null,
+      "decision": "fail_closed",
+      "shadow_decision": null,
+      "response_id": null,
+      "error": {
+        "code": "chronoguard_unverifiable",
+        "message": "ChronoGuard could not verify this response within the configured policy."
+      },
+      "calls": {
+        "embedding": 0,
+        "generation": 1,
+        "extraction": 0,
+        "search": 0,
+        "judge": 0
+      },
+      "text": null
+    },
+    {
+      "case": "next_request_after_exact_eviction",
+      "status": 200,
+      "latency_ms": 63.33,
+      "cache_id": "89faf6d0-5380-5867-a6fa-752b7150a498",
+      "cache_hit": false,
+      "cache_type": null,
+      "decision": "passthrough",
+      "shadow_decision": null,
+      "response_id": "18affa74-2bea-490e-a771-676377f1fd34",
+      "error": null,
+      "calls": {
+        "embedding": 1,
+        "generation": 1,
+        "extraction": 1,
+        "search": 0,
+        "judge": 0
+      },
+      "text": "Go 1.25 is the latest major Go release."
+    },
+    {
+      "case": "repair_stale_provider_miss",
+      "status": 200,
+      "latency_ms": 104.05,
+      "cache_id": "83540fc3-4803-516b-a78f-4d0321393fcf",
+      "cache_hit": false,
+      "cache_type": null,
+      "decision": "regenerated",
+      "shadow_decision": null,
+      "response_id": "c2eddbdd-2fce-4f21-a932-b3041fbf83d4",
+      "error": null,
+      "calls": {
+        "embedding": 1,
+        "generation": 2,
+        "extraction": 2,
+        "search": 0,
+        "judge": 0
+      },
+      "text": "Go 1.25 is the latest major Go release."
+    },
+    {
+      "case": "warm_guard_candidate",
+      "status": 200,
+      "latency_ms": 47.51,
+      "cache_id": "c41c4e97-f523-5188-bedf-520239d47b1a",
+      "cache_hit": false,
+      "cache_type": null,
+      "decision": "passthrough",
+      "shadow_decision": null,
+      "response_id": "66dd3759-31dc-4890-ae17-53799170b425",
+      "error": null,
+      "calls": {
+        "embedding": 1,
+        "generation": 1,
+        "extraction": 1,
+        "search": 0,
+        "judge": 0
+      },
+      "text": "Vienna is the capital of Austria."
+    },
+    {
+      "case": "guard_reissues_original_query",
+      "status": 200,
+      "latency_ms": 50.66,
+      "cache_id": "c41c4e97-f523-5188-bedf-520239d47b1a",
+      "cache_hit": true,
+      "cache_type": "semantic",
+      "decision": "guard_bypass",
+      "shadow_decision": null,
+      "response_id": "8ca55a69-7374-4a5f-9f3d-a13c6d4a7071",
+      "error": null,
+      "calls": {
+        "embedding": 1,
+        "generation": 1,
+        "extraction": 1,
+        "search": 0,
+        "judge": 0
+      },
+      "text": "Canberra is the capital of Australia."
+    },
+    {
+      "case": "strict_rejects_streaming",
+      "status": 503,
+      "latency_ms": 3.12,
+      "cache_id": null,
+      "cache_hit": false,
+      "cache_type": null,
+      "decision": "fail_closed",
+      "shadow_decision": null,
+      "response_id": null,
+      "error": {
+        "code": "chronoguard_unverifiable",
+        "message": "ChronoGuard could not verify this response within the configured policy."
+      },
+      "calls": {
+        "embedding": 0,
+        "generation": 0,
+        "extraction": 0,
+        "search": 0,
+        "judge": 0
+      },
+      "text": null
+    }
+  ]
+}

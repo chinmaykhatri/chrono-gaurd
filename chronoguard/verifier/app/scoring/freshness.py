@@ -29,13 +29,21 @@ def prior_stale(category: Category, as_of: datetime | None, now: datetime):
     return min(.98, max(.02, 1 - 2**(-age/half_life)))
 
 
+def authoritative_conflict(verdict: Verdict, evidence: list[Evidence]) -> bool:
+    support = {row.id for row in evidence if row.tier <= 2 and row.id in verdict.support_ids}
+    oppose = {row.id for row in evidence if row.tier <= 2 and row.id in verdict.contradict_ids}
+    return bool(support and oppose)
+
+
 def invalidation_allowed(verdict: Verdict, evidence: list[Evidence]):
     if verdict.verdict not in ("outdated", "contradicted"):
         return False, "not_contradicted"
+    if authoritative_conflict(verdict, evidence):
+        return False, "conflicting_authoritative_evidence"
     contradict = [e for e in evidence if e.id in verdict.contradict_ids]
     if any(e.tier == 1 for e in contradict):
         return True, "official_contradiction"
-    if len({e.domain for e in contradict if e.tier <= 2}) >= 2:
+    if len({".".join(e.domain.lower().rstrip(".").split(".")[-2:]) for e in contradict if e.tier <= 2}) >= 2:
         return True, "independent_authoritative_contradictions"
     if (verdict.confidence or 0) >= .9 and verdict.corrected_value and any(
         e.tier <= 2 and re.search(r"(?<![\w.])" + re.escape(verdict.corrected_value) + r"(?![\w.]\w|\w)", e.snippet)

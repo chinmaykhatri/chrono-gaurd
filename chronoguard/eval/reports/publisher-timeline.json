@@ -1,0 +1,62 @@
+{
+  "source_snapshot_sha256": "220c12428c9a524e6e6eddb8e552f2631cd03becd4c5d259123852d50e760bf1",
+  "scope": "Publisher timestamps supply independent labels. Request traffic, checks and perfect retrieval are simulated. No LLM or Tavily billing.",
+  "train": "2024, daily sampled changes",
+  "test": "2025, one query per package every six hours",
+  "target_checks_per_hour": 0.25,
+  "learned_interval_seconds": {
+    "certifi": 172800,
+    "click": 172800,
+    "packaging": 172800,
+    "requests": 172800,
+    "sqlalchemy": 172800,
+    "urllib3": 172800
+  },
+  "weekly_budget_checks_per_hour": 0.03571428571428571,
+  "weekly_budget_intervals": {
+    "certifi": 579795,
+    "click": 1277858,
+    "packaging": 744245,
+    "requests": 744245,
+    "sqlalchemy": 351976,
+    "urllib3": 530523
+  },
+  "policies": {
+    "cache_only": {
+      "requests": 8760,
+      "stale_served": 6611,
+      "registry_checks": 6
+    },
+    "fixed_24h": {
+      "requests": 8760,
+      "stale_served": 41,
+      "registry_checks": 2190
+    },
+    "fixed_48h": {
+      "requests": 8760,
+      "stale_served": 97,
+      "registry_checks": 1098
+    },
+    "fixed_7d": {
+      "requests": 8760,
+      "stale_served": 397,
+      "registry_checks": 318
+    },
+    "always_verify": {
+      "requests": 8760,
+      "stale_served": 0,
+      "registry_checks": 8760
+    },
+    "scheduler": {
+      "requests": 8760,
+      "stale_served": 97,
+      "registry_checks": 1098
+    },
+    "scheduler_weekly_budget": {
+      "requests": 8760,
+      "stale_served": 507,
+      "registry_checks": 309
+    }
+  },
+  "traces": "publisher-timeline.csv.gz"
+}

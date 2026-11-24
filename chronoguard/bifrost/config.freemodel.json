@@ -1,0 +1,78 @@
+{
+  "config_store": {
+    "enabled": false
+  },
+  "logs_store": {
+    "enabled": false
+  },
+  "providers": {
+    "openai": {
+      "network_config": {
+        "base_url": "https://freemodel.in",
+        "max_retries": 0
+      },
+      "keys": [
+        {
+          "name": "freemodel",
+          "value": "env.FREEMODEL_API_KEY",
+          "models": [
+            "claude-opus-5"
+          ],
+          "weight": 1
+        }
+      ]
+    },
+    "ollama": {
+      "network_config": {
+        "base_url": "http://host.docker.internal:11434",
+        "allow_private_network": true,
+        "max_retries": 0
+      },
+      "keys": [
+        {
+          "name": "local",
+          "value": "local-ollama",
+          "ollama_key_config": {"url": "http://host.docker.internal:11434"},
+          "models": [
+            "all-minilm:latest",
+            "qwen2.5:1.5b"
+          ],
+          "weight": 1
+        }
+      ]
+    }
+  },
+  "vector_store": {
+    "enabled": true,
+    "type": "weaviate",
+    "config": {
+      "scheme": "http",
+      "host": "weaviate:8080"
+    }
+  },
+  "plugins": [
+    {
+      "name": "cg-front",
+      "enabled": true,
+      "config": {
+        "enabled": true
+      }
+    },
+    {
+      "name": "semantic_cache",
+      "enabled": true,
+      "config": {
+        "provider": "ollama",
+        "embedding_model": "all-minilm:latest",
+        "dimension": 384,
+        "threshold": 0.88,
+        "ttl": 2592000,
+        "vector_store_namespace": "ChronoGuardMiniLM"
+      }
+    },
+    {
+      "name": "cg-back",
+      "enabled": false
+    }
+  ]
+}

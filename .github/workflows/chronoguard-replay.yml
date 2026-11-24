@@ -1,6 +1,8 @@
 name: ChronoGuard gateway replay
 
 on:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - "chronoguard/**"
@@ -22,6 +24,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Scan checkout for embedded credentials
+        run: python scripts/audit_credentials.py
       - run: python -m pip install uv==0.11.26
       - run: uv sync --project verifier --frozen
       - run: uv run --project verifier pytest verifier/tests -q
@@ -52,6 +56,8 @@ jobs:
       - name: Repeat the scenario with the same persistent stores
         run: uv run --project verifier python scripts/release_demo.py
       - run: python eval/run_eval.py --output release-replay-report.json
+      - run: uv run --project verifier python eval/publisher_timeline.py --output publisher-timeline.json
+      - run: uv run --project verifier python scripts/gateway_benchmark.py --output gateway-latency.json
       - run: uv run --with playwright==1.60.0 python -m playwright install --with-deps chromium
       - run: uv run --with playwright==1.60.0 python scripts/console_smoke.py --output browser-proof.json
       - uses: actions/upload-artifact@v4
@@ -61,5 +67,8 @@ jobs:
             chronoguard/release-proof.json
             chronoguard/release-replay-report.json
             chronoguard/browser-proof.json
+            chronoguard/publisher-timeline.json
+            chronoguard/publisher-timeline.csv.gz
+            chronoguard/gateway-latency.json
       - if: always()
         run: docker compose -f docker-compose.yml -f deploy/compose.replay.yml -p chronoguard-ci down

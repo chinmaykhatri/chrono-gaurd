@@ -13,6 +13,14 @@ from app.clients import DependencyUnavailable
 from app.config import Settings
 from app.main import create_app
 from app.schemas.contracts import Category, Claim, Evidence, Verdict
+
+
+def test_strict_coverage_finds_second_version_and_ignores_code_and_urls():
+    from app.pipeline.verify import uncovered_version
+    text = "Go 1.25 is current."
+    claim = Claim(text=text, entity="Go", attribute="version", stated_value="1.25", class_key="software_versions")
+    assert uncovered_version(text + " Node 24.1 shipped as well.", [claim])
+    assert not uncovered_version(text + " See https://go.dev/1.26/ and `tool v2.3`.", [claim])
 from app.security import key
 
 

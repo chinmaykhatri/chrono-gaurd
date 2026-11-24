@@ -85,6 +85,8 @@ class EvalService:
     def import_dataset(self, payload: dict[str, Any]) -> dict[str, Any]:
         if isinstance(payload, list):
             payload = {"items": payload}
+        if not isinstance(payload, dict):
+            raise ValueError("Dataset must be an object or a list.")
         items = payload.get("items", [])
         if not isinstance(items, list) or not all(isinstance(item, dict) for item in items):
             raise ValueError("Dataset items must be objects.")
@@ -122,6 +124,3 @@ class EvalService:
         }
         self.runs[rid] = {**run, "report": report}
         return run
-
-
-eval_service = EvalService()

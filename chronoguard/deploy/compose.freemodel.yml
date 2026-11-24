@@ -1,0 +1,12 @@
+services:
+  bifrost:
+    volumes:
+      - ./bifrost/config.freemodel.json:/etc/bifrost/config.json:ro
+    environment:
+      FREEMODEL_API_KEY: ${FREEMODEL_API_KEY:?Set FREEMODEL_API_KEY in the local .env}
+  verifier:
+    environment:
+      CG_CHAT_MODEL: openai/claude-opus-5
+      CG_PROMPT_JSON_SCHEMA: "true"
+      CG_EXTRACTOR_MODEL: ${CG_FREEMODEL_EXTRACTOR:-openai/claude-opus-5}
+      CG_JUDGE_MODEL: ${CG_FREEMODEL_JUDGE:-openai/claude-opus-5}
